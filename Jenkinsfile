@@ -1,40 +1,33 @@
 pipeline {
     agent any
-
     environment {
-        GIT_REPO = 'https://github.com/ThaheraThabassum/automate.git'
-        SSH_KEY = 'jenkins-ssh-key'
+        GIT_REPO = 'https://github.com/ThaheraThabassum/repo.git'
+        SSH_KEY = 'jenkins-ssh-key'  // The ID you set in Jenkins for SSH key
     }
-
     stages {
-        stage('Checkout Develop Branch') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'develop', url: "${GIT_REPO}"
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                    git clone ${GIT_REPO}
+                    cd automate  # Replace with your repo name
+                    git checkout repo
+                    git pull origin repo
+                    '''
+                }
             }
         }
 
-        stage('Merge Develop to UAT') {
+        stage('Merge and Push to UAT') {
             steps {
-                script {
-                    sshagent(credentials: [SSH_KEY]) {
-                        sh '''
-                        # Configure Git user if not set
-                        git config --global user.email "thahera.t@algonox.com"
-                        git config --global user.name "thahera"
-
-                        # Checkout UAT branch
-                        git checkout automate || git checkout -b automate
-
-                        # Pull latest changes
-                        git pull origin automate
-
-                        # Merge develop into uat
-                        git merge develop -m "Automated merge of develop into uat"
-
-                        # Push changes to UAT branch
-                        git push origin automate
-                        '''
-                    }
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                    cd automate  # Replace with your repo name
+                    git checkout automate
+                    git pull origin automate
+                    git merge repo -m "Automated merge from develop to uat"
+                    git push origin automate
+                    '''
                 }
             }
         }
