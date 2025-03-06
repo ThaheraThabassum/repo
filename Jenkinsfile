@@ -12,7 +12,7 @@ pipeline {
                     sh """
                     echo "Attempting to connect to ${REMOTE_HOST}..."
                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
-                    "echo 'Successfully logged in!'"
+                    echo "Successfully logged in!"
                     logout
                     EOF
                     """
