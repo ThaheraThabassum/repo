@@ -7,13 +7,18 @@ pipeline {
         SSH_KEY = 'jenkins-ssh-key'  // SSH credentials stored in Jenkins
     }
     stages {
-        stage('Checkout Source Branch') {
+        stage('Clone Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
+                    echo "Cleaning workspace..."
                     rm -rf repo  # Ensure a clean workspace
-                    git clone ${GIT_REPO}
+                    
+                    echo "Cloning repository..."
+                    git clone ${GIT_REPO} repo
                     cd repo
+                    
+                    echo "Checking out ${SOURCE_BRANCH}..."
                     git checkout ${SOURCE_BRANCH}
                     git pull origin ${SOURCE_BRANCH}
                     '''
@@ -26,19 +31,24 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
+
+                    echo "Fetching all branches..."
+                    git fetch --all
                     
-                    # Checkout automate branch or create it if not exists
+                    # Ensure TARGET_BRANCH exists or create it
                     if git show-ref --verify --quiet refs/heads/${TARGET_BRANCH}; then
+                        echo "Switching to existing ${TARGET_BRANCH} branch..."
                         git checkout ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH}
                     else
+                        echo "Target branch does not exist, creating ${TARGET_BRANCH}..."
                         git checkout -b ${TARGET_BRANCH}
                     fi
 
-                    # Merge changes from main to automate
+                    echo "Merging ${SOURCE_BRANCH} into ${TARGET_BRANCH}..."
                     git merge ${SOURCE_BRANCH} --no-ff -m "Automated merge from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
 
-                    # Push changes
+                    echo "Pushing changes to ${TARGET_BRANCH}..."
                     git push origin ${TARGET_BRANCH}
                     '''
                 }
