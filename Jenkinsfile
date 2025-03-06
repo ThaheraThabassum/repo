@@ -1,7 +1,7 @@
 pipeline {
     agent any
     environment {
-        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'  // Use SSH
+        GIT_REPO = https://github.com/ThaheraThabassum/repo.git // Use SSH
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key'  // Jenkins SSH credentials
