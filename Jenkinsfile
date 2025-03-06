@@ -13,6 +13,8 @@ pipeline {
                     echo "Attempting to connect to ${REMOTE_HOST}..."
                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
                     echo "Successfully logged in!"
+                    cd /home/ec2-user/
+                    cat testing_jenkinsfile.txt
                     logout
                     EOF
                     """
