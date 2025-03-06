@@ -4,7 +4,7 @@ pipeline {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'  // Use SSH
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
-        SSH_KEY = 'jenkins-ssh-key'  // Jenkins SSH credentials ID
+        SSH_KEY = 'jenkins-ssh-key1'  // Jenkins SSH credentials ID
     }
     stages {
         stage('Clean Workspace') {
