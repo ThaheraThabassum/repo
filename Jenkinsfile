@@ -1,10 +1,10 @@
 pipeline {
     agent any
     environment {
-        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'  // Use SSH URL
+        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'  // Use SSH
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
-        SSH_KEY = 'jenkins-ssh-key'  // SSH credentials stored in Jenkins
+        SSH_KEY = 'jenkins-ssh-key'  // Jenkins SSH credentials
     }
     stages {
         stage('Clone Repository') {
@@ -34,19 +34,24 @@ pipeline {
 
                     echo "Fetching all branches..."
                     git fetch --all
-                    
-                    # Ensure TARGET_BRANCH exists or create it
-                    if git show-ref --verify --quiet refs/heads/${TARGET_BRANCH}; then
-                        echo "Switching to existing ${TARGET_BRANCH} branch..."
+
+                    # Check if TARGET_BRANCH exists remotely
+                    if git ls-remote --heads origin ${TARGET_BRANCH} | grep ${TARGET_BRANCH}; then
+                        echo "Switching to ${TARGET_BRANCH}..."
                         git checkout ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH}
                     else
                         echo "Target branch does not exist, creating ${TARGET_BRANCH}..."
                         git checkout -b ${TARGET_BRANCH}
+                        git push -u origin ${TARGET_BRANCH}  # Ensure it's tracked
                     fi
 
                     echo "Merging ${SOURCE_BRANCH} into ${TARGET_BRANCH}..."
-                    git merge ${SOURCE_BRANCH} --no-ff -m "Automated merge from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                    git merge ${SOURCE_BRANCH} --no-ff -m "Automated merge from ${SOURCE_BRANCH} to ${TARGET_BRANCH}" || {
+                        echo "Merge conflict detected! Resolving automatically..."
+                        git reset --hard origin/${TARGET_BRANCH}
+                        exit 1
+                    }
 
                     echo "Pushing changes to ${TARGET_BRANCH}..."
                     git push origin ${TARGET_BRANCH}
