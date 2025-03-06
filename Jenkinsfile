@@ -4,28 +4,29 @@ pipeline {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
+        SSH_KEY = 'jenkins-ssh-key1'  // Jenkins SSH credentials ID
     }
     stages {
-        stage('Clean Workspace') {
+        stage('Check SSH Credentials') {
             steps {
-                echo "Cleaning up previous build data..."
-                deleteDir()
+                script {
+                    echo "Checking SSH credentials..."
+                    def creds = credentials(SSH_KEY)
+                    echo "Using SSH key ID: ${creds}"
+                }
             }
         }
 
         stage('Clone Repository') {
             steps {
-                sshagent(['jenkins-ssh-key1']) { // Ensure SSH key is used
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                    echo "Using SSH Key for Git Operations"
+                    echo "Testing SSH connection..."
+                    ssh -o StrictHostKeyChecking=no -T git@github.com
+                    
+                    echo "Cloning repository..."
                     git clone ${GIT_REPO} repo
                     cd repo
-
-                    echo "Configuring Git User..."
-                    git config --global user.email "jenkins@example.com"
-                    git config --global user.name "Jenkins CI"
-
-                    echo "Checking out ${SOURCE_BRANCH}..."
                     git checkout ${SOURCE_BRANCH}
                     git pull origin ${SOURCE_BRANCH}
                     '''
