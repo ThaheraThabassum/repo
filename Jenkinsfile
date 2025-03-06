@@ -9,10 +9,13 @@ pipeline {
         stage('Check SSH Connection') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''
+                    sh """
                     echo "Attempting to connect to ${REMOTE_HOST}..."
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "echo 'Successfully logged in!'"
-                    '''
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+                    "echo 'Successfully logged in!'"
+                    logout
+                    EOF
+                    """
                 }
             }
         }
