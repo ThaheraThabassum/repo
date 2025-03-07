@@ -39,7 +39,7 @@ pipeline {
                     cd repo
                     TIMESTAMP=$(date +%Y%m%d%H%M%S)
 
-                    echo "Checking if ${FILES_TO_COPY} exists..."
+                    echo "Checking if ${FILES_TO_COPY} exists in automate branch..."
                     if [ -e "${FILES_TO_COPY}" ]; then
                         BACKUP_FILE="${FILES_TO_COPY}_backup_${TIMESTAMP}"
                         mv ${FILES_TO_COPY} ${BACKUP_FILE}
@@ -51,15 +51,26 @@ pipeline {
                         echo "No existing file to backup."
                     fi
 
-                    echo "Copying new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                    git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
+                    echo "Checking if ${FILES_TO_COPY} exists in ${SOURCE_BRANCH}..."
+                    git checkout ${SOURCE_BRANCH}
+                    if [ -e "${FILES_TO_COPY}" ]; then
+                        echo "Copying new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                        git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
-                    echo "Committing new files..."
-                    git add ${FILES_TO_COPY}
-                    git commit -m "Copy new ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                        echo "Checking for changes..."
+                        git diff --quiet || CHANGES="yes"
 
-                    echo "Pushing changes to ${TARGET_BRANCH}..."
-                    git push origin ${TARGET_BRANCH}
+                        if [ "$CHANGES" = "yes" ]; then
+                            git add ${FILES_TO_COPY}
+                            git commit -m "Copy new ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                            echo "Pushing changes to ${TARGET_BRANCH}..."
+                            git push origin ${TARGET_BRANCH}
+                        else
+                            echo "No changes detected. Skipping commit."
+                        fi
+                    else
+                        echo "File ${FILES_TO_COPY} does not exist in ${SOURCE_BRANCH}. Skipping copy."
+                    fi
                     '''
                 }
             }
