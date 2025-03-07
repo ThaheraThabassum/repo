@@ -37,7 +37,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
-                    TIMESTAMP=$(date +%d%m%y)
+                    TIMESTAMP=$(date +%d_%m_%y)
 
                     echo "Checking if ${FILES_TO_COPY} exists in automate branch..."
                     if [ -e "${FILES_TO_COPY}" ]; then
@@ -51,6 +51,9 @@ pipeline {
                         echo "No existing file to backup."
                     fi
 
+                    echo "Stashing any local changes before switching branch..."
+                    git stash  # Stash any pending changes
+
                     echo "Fetching latest changes from ${SOURCE_BRANCH}..."
                     git checkout ${SOURCE_BRANCH}
                     git pull origin ${SOURCE_BRANCH} --rebase
@@ -60,8 +63,9 @@ pipeline {
                         echo "Copying new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                         git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
-                        echo "Switching to ${TARGET_BRANCH}..."
+                        echo "Switching back to ${TARGET_BRANCH}..."
                         git checkout ${TARGET_BRANCH}
+                        git stash pop || true  # Apply stashed changes if any
 
                         echo "Staging copied files..."
                         git add ${FILES_TO_COPY}
