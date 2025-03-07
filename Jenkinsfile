@@ -5,7 +5,7 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_TO_COPY = "new_testing"  // Change to the exact file/folder you want to copy
+        FILES_TO_COPY = "new_testing"  // Change this to the exact file/folder name
     }
     stages {
         stage('Prepare Repository') {
@@ -37,7 +37,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
-                    TIMESTAMP=$(date +%Y%m%d%H%M%S)
+                    TIMESTAMP=$(date +%d%m%y)
 
                     echo "Checking if ${FILES_TO_COPY} exists in automate branch..."
                     if [ -e "${FILES_TO_COPY}" ]; then
@@ -51,22 +51,31 @@ pipeline {
                         echo "No existing file to backup."
                     fi
 
-                    echo "Checking if ${FILES_TO_COPY} exists in ${SOURCE_BRANCH}..."
+                    echo "Fetching latest changes from ${SOURCE_BRANCH}..."
                     git checkout ${SOURCE_BRANCH}
+                    git pull origin ${SOURCE_BRANCH} --rebase
+
+                    echo "Checking if ${FILES_TO_COPY} exists in ${SOURCE_BRANCH}..."
                     if [ -e "${FILES_TO_COPY}" ]; then
                         echo "Copying new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                         git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
+                        echo "Switching to ${TARGET_BRANCH}..."
+                        git checkout ${TARGET_BRANCH}
+
+                        echo "Staging copied files..."
+                        git add ${FILES_TO_COPY}
+                        git status  # Debugging step
+
                         echo "Checking for changes..."
-                        git diff --quiet || CHANGES="yes"
+                        git diff --cached --exit-code || CHANGES="yes"
 
                         if [ "$CHANGES" = "yes" ]; then
-                            git add ${FILES_TO_COPY}
                             git commit -m "Copy new ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                             echo "Pushing changes to ${TARGET_BRANCH}..."
                             git push origin ${TARGET_BRANCH}
                         else
-                            echo "No changes detected. Skipping commit."
+                            echo "No new changes detected. Skipping commit."
                         fi
                     else
                         echo "File ${FILES_TO_COPY} does not exist in ${SOURCE_BRANCH}. Skipping copy."
