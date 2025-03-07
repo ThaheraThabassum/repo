@@ -22,7 +22,7 @@ pipeline {
             }
         }
 
-        stage('Copy Specific Files to Target Branch') {
+        stage('Backup and Copy Files') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -30,12 +30,19 @@ pipeline {
                     git checkout ${TARGET_BRANCH}
                     git pull origin ${TARGET_BRANCH}
 
+                    echo "Creating backup of existing files..."
+                    mkdir -p backup/${TARGET_BRANCH}
+                    if [ -e ${FILES_TO_COPY} ]; then
+                        mv ${FILES_TO_COPY} backup/${TARGET_BRANCH}/
+                        echo "Backup created for ${FILES_TO_COPY}"
+                    fi
+
                     echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                     git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
                     echo "Committing changes..."
                     git add ${FILES_TO_COPY}
-                    git commit -m "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                    git commit -m "Backup existing files and copy new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
 
                     echo "Pushing changes to ${TARGET_BRANCH}..."
                     git push origin ${TARGET_BRANCH}
