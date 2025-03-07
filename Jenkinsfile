@@ -5,7 +5,7 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_TO_COPY = "new_testing"
+        FILES_TO_COPY = "new_testing"  // Change to the exact file/folder you want to copy
     }
     stages {
         stage('Prepare Repository') {
@@ -18,14 +18,14 @@ pipeline {
                         git reset --hard
                         git clean -fd
                         git fetch --all
-                        git checkout ${SOURCE_BRANCH}
-                        git pull origin ${SOURCE_BRANCH}
+                        git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
                     else
                         echo "Cloning repository..."
                         git clone ${GIT_REPO} repo
                         cd repo
-                        git checkout ${SOURCE_BRANCH}
-                        git pull origin ${SOURCE_BRANCH}
+                        git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
                     fi
                     '''
                 }
@@ -37,24 +37,26 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
-                    git checkout ${TARGET_BRANCH}
-                    git pull origin ${TARGET_BRANCH}
+                    TIMESTAMP=$(date +%Y%m%d%H%M%S)
 
-                    BACKUP_DIR="backup/${TARGET_BRANCH}_$(date +%Y%m%d%H%M%S)"
-                    mkdir -p ${BACKUP_DIR}
-
-                    echo "Backing up existing files..."
+                    echo "Checking if ${FILES_TO_COPY} exists..."
                     if [ -e "${FILES_TO_COPY}" ]; then
-                        mv ${FILES_TO_COPY} ${BACKUP_DIR}/
-                        echo "Backup complete: ${BACKUP_DIR}"
+                        BACKUP_FILE="${FILES_TO_COPY}_backup_${TIMESTAMP}"
+                        mv ${FILES_TO_COPY} ${BACKUP_FILE}
+                        git add ${BACKUP_FILE}
+                        git commit -m "Backup existing ${FILES_TO_COPY} as ${BACKUP_FILE}"
+                        git push origin ${TARGET_BRANCH}
+                        echo "Backup created: ${BACKUP_FILE}"
+                    else
+                        echo "No existing file to backup."
                     fi
 
                     echo "Copying new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                     git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
-                    echo "Committing changes..."
+                    echo "Committing new files..."
                     git add ${FILES_TO_COPY}
-                    git commit -m "Backup old files and copy new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                    git commit -m "Copy new ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
 
                     echo "Pushing changes to ${TARGET_BRANCH}..."
                     git push origin ${TARGET_BRANCH}
