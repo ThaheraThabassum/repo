@@ -55,15 +55,15 @@ pipeline {
                             git commit -m "Backup created: $BACKUP_FILE"
                             git push origin ${TARGET_BRANCH}
                             
-                            # Get the total count of backup files
-                            BACKUP_COUNT=$(ls -tr ${file}_* 2>/dev/null | wc -l)
-                            
-                            # Only delete if there are more than 3 backups
+                            # Keep only the latest 3 backups, delete older ones
+                            BACKUP_FILES=$(ls -tr ${file}_* 2>/dev/null)
+                            BACKUP_COUNT=$(echo "$BACKUP_FILES" | wc -l)
+
                             if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                BACKUP_FILES=$(ls -tr ${file}_* 2>/dev/null | head -n -3)  # Select only old backups
-                                echo "Deleting old backups: $BACKUP_FILES"
-                                echo "$BACKUP_FILES" | xargs rm -f  # Delete old backups
-                                echo "$BACKUP_FILES" | xargs git rm  # Remove from Git
+                                OLD_BACKUPS=$(echo "$BACKUP_FILES" | head -n -3)  # Get older files
+                                echo "Deleting old backups: $OLD_BACKUPS"
+                                echo "$OLD_BACKUPS" | xargs rm -f  # Delete old backups
+                                echo "$OLD_BACKUPS" | xargs git rm  # Remove from Git
                                 git commit -m "Removed old backups for $file"
                                 git push origin ${TARGET_BRANCH}
                             fi
@@ -98,5 +98,3 @@ pipeline {
         }
     }
 }
-
-
