@@ -92,7 +92,7 @@ pipeline {
                         git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
                         echo "Setting permissions to 777 for copied files..."
-                        sudo chmod 777 ${FILES_TO_COPY}
+                        chmod 777 ${FILES_TO_COPY}
                         
                         echo "Committing changes..."
                         git add ${FILES_TO_COPY}
