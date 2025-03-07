@@ -8,32 +8,40 @@ pipeline {
         FILES_TO_COPY = "new_testing"  // List of specific files/folders to copy
     }
     stages {
-        stage('Clone Repository') {
+        stage('Prepare Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                    echo "Cloning repository..."
-                    git clone ${GIT_REPO} repo
-                    cd repo
-                    git checkout ${SOURCE_BRANCH}
-                    git pull origin ${SOURCE_BRANCH}
+                    echo "Checking if repository already exists..."
+                    if [ -d "repo/.git" ]; then
+                        echo "Repository exists. Fetching latest changes..."
+                        cd repo
+                        git fetch --all
+                        git checkout ${SOURCE_BRANCH}
+                        git pull origin ${SOURCE_BRANCH}
+                    else
+                        echo "Cloning repository..."
+                        git clone ${GIT_REPO} repo
+                        cd repo
+                        git checkout ${SOURCE_BRANCH}
+                        git pull origin ${SOURCE_BRANCH}
+                    fi
                     '''
                 }
             }
         }
 
-        stage('Backup Existing Files') {
+        stage('Backup Existing Files (If Present)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
-                    git checkout ${TARGET_BRANCH}
-                    git pull origin ${TARGET_BRANCH}
+                    git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
+                    git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
 
-                    # Generate TIMESTAMP inside the shell script
                     TIMESTAMP=$(date +%d_%m_%y)
 
-                    echo "Backing up existing files before copying..."
+                    echo "Checking files for backup..."
                     for file in ${FILES_TO_COPY}; do
                         if [ -e "$file" ]; then
                             mv "$file" "${file}_$TIMESTAMP"
@@ -47,20 +55,19 @@ pipeline {
             }
         }
 
-        stage('Copy Specific Files to Target Branch') {
+        stage('Copy Files to Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
                     git checkout ${TARGET_BRANCH}
-                    git pull origin ${TARGET_BRANCH}
 
                     echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                     git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
                     echo "Committing changes..."
                     git add ${FILES_TO_COPY} 
-                    git commit -m "Backup & Copy: ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                    git commit -m "Backup (if exists) & Copy: ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
 
                     echo "Pushing changes to ${TARGET_BRANCH}..."
                     git push origin ${TARGET_BRANCH}
