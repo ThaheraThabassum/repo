@@ -37,7 +37,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
-                    TIMESTAMP=$(date +"%d_%m_%y")
+                    TIMESTAMP=$(date +"%d_%m_%y_%H-%M-%S")
 
                     echo "Checking if ${FILES_TO_COPY} exists..."
                     if [ -e "${FILES_TO_COPY}" ]; then
