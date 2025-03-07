@@ -46,8 +46,14 @@ pipeline {
                     echo "Checking files for backup..."
                     for file in ${FILES_TO_COPY}; do
                         if [ -e "$file" ]; then
-                            mv "$file" "${file}_$TIMESTAMP"
-                            echo "Backup created: ${file}_$TIMESTAMP"
+                            BACKUP_FILE="${file}_$TIMESTAMP"
+                            mv "$file" "$BACKUP_FILE"
+                            echo "Backup created: $BACKUP_FILE"
+
+                            # Add backup file to Git
+                            git add "$BACKUP_FILE"
+                            git commit -m "Backup created: $BACKUP_FILE"
+                            git push origin ${TARGET_BRANCH}
                         else
                             echo "No existing file found for $file, skipping backup."
                         fi
@@ -68,7 +74,7 @@ pipeline {
                     git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
 
                     echo "Committing changes..."
-                    git add ${FILES_TO_COPY} 
+                    git add ${FILES_TO_COPY}
                     git commit -m "Backup (if exists) & Copy: ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
 
                     echo "Pushing changes to ${TARGET_BRANCH}..."
