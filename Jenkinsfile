@@ -55,17 +55,21 @@ pipeline {
                             git commit -m "Backup created: $BACKUP_FILE"
                             git push origin ${TARGET_BRANCH}
                             
-                            # Keep only the latest 3 backups, delete older ones
+                            # Get the list of backup files sorted from oldest to newest
                             BACKUP_FILES=$(ls -tr ${file}_* 2>/dev/null)
                             BACKUP_COUNT=$(echo "$BACKUP_FILES" | wc -l)
 
+                            # Keep only the latest 3 backups, delete older ones
                             if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                OLD_BACKUPS=$(echo "$BACKUP_FILES" | head -n -3)  # Get older files
+                                OLD_BACKUPS=$(echo "$BACKUP_FILES" | head -n -3)  # Get oldest files
                                 echo "Deleting old backups: $OLD_BACKUPS"
-                                echo "$OLD_BACKUPS" | xargs rm -f  # Delete old backups
-                                echo "$OLD_BACKUPS" | xargs git rm  # Remove from Git
-                                git commit -m "Removed old backups for $file"
-                                git push origin ${TARGET_BRANCH}
+                                
+                                if [ -n "$OLD_BACKUPS" ]; then
+                                    echo "$OLD_BACKUPS" | xargs rm -f
+                                    echo "$OLD_BACKUPS" | xargs git rm
+                                    git commit -m "Removed old backups for $file"
+                                    git push origin ${TARGET_BRANCH}
+                                fi
                             fi
                         else
                             echo "No existing file found for $file, skipping backup."
