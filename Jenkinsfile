@@ -39,7 +39,7 @@ pipeline {
                     git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
                     git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
 
-                    TIMESTAMP=$(date +%d_%m_%y)
+                    TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                     echo "Checking files for backup..."
                     for file in ${FILES_TO_COPY}; do
