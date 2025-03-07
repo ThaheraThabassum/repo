@@ -59,8 +59,8 @@ pipeline {
                             BACKUP_FILES=$(ls -tr ${file}_* 2>/dev/null | head -n -3)
                             if [ -n "$BACKUP_FILES" ]; then
                                 echo "Deleting old backups..."
-                                rm -f $BACKUP_FILES
-                                git rm $BACKUP_FILES
+                                echo "$BACKUP_FILES" | xargs rm -f
+                                echo "$BACKUP_FILES" | xargs git rm --ignore-unmatch
                                 git commit -m "Removed old backups for $file"
                                 git push origin ${TARGET_BRANCH}
                             fi
