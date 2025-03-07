@@ -2,88 +2,66 @@ pipeline {
     agent any
     environment {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
-        SOURCE_BRANCH = 'main'
-        TARGET_BRANCH = 'automate'
-        SSH_KEY = 'jenkins-ssh-key1'
-        FILES_TO_COPY = "new_testing"  // Change this to the exact file/folder name
+        SOURCE_BRANCH = 'main'  // Branch to copy files from
+        TARGET_BRANCH = 'automate'  // Branch to receive files
+        SSH_KEY = 'jenkins-ssh-key1'  // Ensure this is the correct SSH credential
+        FILES_TO_COPY = "new_testing"  // List of specific files/folders to copy
+        TIMESTAMP = "$(date +%d_%m_%y)"  // Date format: dd_mm_yy
     }
     stages {
-        stage('Prepare Repository') {
+        stage('Clone Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                    if [ -d "repo/.git" ]; then
-                        echo "Repository already exists. Fetching latest changes..."
-                        cd repo
-                        git reset --hard
-                        git clean -fd
-                        git fetch --all
-                        git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
-                    else
-                        echo "Cloning repository..."
-                        git clone ${GIT_REPO} repo
-                        cd repo
-                        git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
-                    fi
+                    echo "Cloning repository..."
+                    git clone ${GIT_REPO} repo
+                    cd repo
+                    git checkout ${SOURCE_BRANCH}
+                    git pull origin ${SOURCE_BRANCH}
                     '''
                 }
             }
         }
 
-        stage('Backup and Copy Files') {
+        stage('Backup Existing Files') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
-                    TIMESTAMP=$(date +%d_%m_%y)
+                    git checkout ${TARGET_BRANCH}
+                    git pull origin ${TARGET_BRANCH}
 
-                    echo "Checking if ${FILES_TO_COPY} exists in automate branch..."
-                    if [ -e "${FILES_TO_COPY}" ]; then
-                        BACKUP_FILE="${FILES_TO_COPY}_backup_${TIMESTAMP}"
-                        mv ${FILES_TO_COPY} ${BACKUP_FILE}
-                        git add ${BACKUP_FILE}
-                        git commit -m "Backup existing ${FILES_TO_COPY} as ${BACKUP_FILE}"
-                        git push origin ${TARGET_BRANCH}
-                        echo "Backup created: ${BACKUP_FILE}"
-                    else
-                        echo "No existing file to backup."
-                    fi
-
-                    echo "Stashing any local changes before switching branch..."
-                    git stash  # Stash any pending changes
-
-                    echo "Fetching latest changes from ${SOURCE_BRANCH}..."
-                    git checkout ${SOURCE_BRANCH}
-                    git pull origin ${SOURCE_BRANCH} --rebase
-
-                    echo "Checking if ${FILES_TO_COPY} exists in ${SOURCE_BRANCH}..."
-                    if [ -e "${FILES_TO_COPY}" ]; then
-                        echo "Copying new files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
-
-                        echo "Switching back to ${TARGET_BRANCH}..."
-                        git checkout ${TARGET_BRANCH}
-                        git stash pop || true  # Apply stashed changes if any
-
-                        echo "Staging copied files..."
-                        git add ${FILES_TO_COPY}
-                        git status  # Debugging step
-
-                        echo "Checking for changes..."
-                        git diff --cached --exit-code || CHANGES="yes"
-
-                        if [ "$CHANGES" = "yes" ]; then
-                            git commit -m "Copy new ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-                            echo "Pushing changes to ${TARGET_BRANCH}..."
-                            git push origin ${TARGET_BRANCH}
+                    echo "Backing up existing files before copying..."
+                    for file in ${FILES_TO_COPY}; do
+                        if [ -e "$file" ]; then
+                            mv "$file" "${file}_${TIMESTAMP}"
+                            echo "Backup created: ${file}_${TIMESTAMP}"
                         else
-                            echo "No new changes detected. Skipping commit."
+                            echo "No existing file found for $file, skipping backup."
                         fi
-                    else
-                        echo "File ${FILES_TO_COPY} does not exist in ${SOURCE_BRANCH}. Skipping copy."
-                    fi
+                    done
+                    '''
+                }
+            }
+        }
+
+        stage('Copy Specific Files to Target Branch') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                    cd repo
+                    git checkout ${TARGET_BRANCH}
+                    git pull origin ${TARGET_BRANCH}
+
+                    echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                    git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
+
+                    echo "Committing changes..."
+                    git add ${FILES_TO_COPY} 
+                    git commit -m "Backup & Copy: ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+
+                    echo "Pushing changes to ${TARGET_BRANCH}..."
+                    git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
