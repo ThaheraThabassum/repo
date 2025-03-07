@@ -17,6 +17,8 @@ pipeline {
                         echo "Repository exists. Fetching latest changes..."
                         cd repo
                         git fetch --all
+                        git reset --hard  # Reset uncommitted changes
+                        git clean -fd     # Remove untracked files
                         git checkout ${SOURCE_BRANCH}
                         git pull origin ${SOURCE_BRANCH}
                     else
