@@ -42,18 +42,28 @@ pipeline {
                     git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
 
                     TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
-
+                    
                     echo "Checking files for backup..."
                     for file in ${FILES_TO_COPY}; do
                         if [ -e "$file" ]; then
                             BACKUP_FILE="${file}_$TIMESTAMP"
                             mv "$file" "$BACKUP_FILE"
                             echo "Backup created: $BACKUP_FILE"
-
+                            
                             # Add backup file to Git
                             git add "$BACKUP_FILE"
                             git commit -m "Backup created: $BACKUP_FILE"
                             git push origin ${TARGET_BRANCH}
+                            
+                            # Keep only the latest 3 backups
+                            BACKUP_FILES=$(ls -t ${file}_* 2>/dev/null | tail -n +4)
+                            if [ -n "$BACKUP_FILES" ]; then
+                                echo "Deleting old backups..."
+                                rm -f $BACKUP_FILES
+                                git rm $BACKUP_FILES
+                                git commit -m "Removed old backups for $file"
+                                git push origin ${TARGET_BRANCH}
+                            fi
                         else
                             echo "No existing file found for $file, skipping backup."
                         fi
@@ -69,14 +79,14 @@ pipeline {
                     sh '''
                     cd repo
                     git checkout ${TARGET_BRANCH}
-
+                    
                     echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                     git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
-
+                    
                     echo "Committing changes..."
                     git add ${FILES_TO_COPY}
                     git commit -m "Backup (if exists) & Copy: ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-
+                    
                     echo "Pushing changes to ${TARGET_BRANCH}..."
                     git push origin ${TARGET_BRANCH}
                     '''
