@@ -13,7 +13,7 @@ pipeline {
                     echo "Attempting to connect to ${REMOTE_HOST}..."
                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
                     echo "Successfully logged in!"
-                    cd /home/ubuntu/
+                    cd /home/thahera/
                     sudo chmod 777 testing_jenkinsfile.txt
                     cat testing_jenkinsfile.txt
                     logout
