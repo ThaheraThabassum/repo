@@ -1,23 +1,45 @@
 pipeline {
     agent any
     environment {
-        SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8' // Replace with your correct Jenkins SSH credential ID
-        REMOTE_USER = 'thahera'     // Replace with your remote server username
-        REMOTE_HOST = '3.111.252.210' // Replace with your remote server IP/hostname
+        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
+        SOURCE_BRANCH = 'main'  // Branch to copy files from
+        TARGET_BRANCH = 'automate'  // Branch to receive files
+        SSH_KEY = 'jenkins-ssh-key1'  // Ensure this is the correct SSH credential
+        FILES_TO_COPY = "new_testing"  // List of specific files/folders to copy
     }
     stages {
-        stage('Check SSH Connection') {
+        stage('Clone Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                    echo "Attempting to connect to ${REMOTE_HOST}..."
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
-                    echo "Successfully logged in!"
-                    cd /home/ec2-user/
-                    cat testing_jenkinsfile.txt
-                    logout
-                    EOF
-                    """
+                    sh '''
+                    echo "Cloning repository..."
+                    git clone ${GIT_REPO} repo
+                    cd repo
+                    git checkout ${SOURCE_BRANCH}
+                    git pull origin ${SOURCE_BRANCH}
+                    '''
+                }
+            }
+        }
+
+        stage('Copy Specific Files to Target Branch') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                    cd repo
+                    git checkout ${TARGET_BRANCH}
+                    git pull origin ${TARGET_BRANCH}
+
+                    echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                    git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
+
+                    echo "Committing changes..."
+                    git add ${FILES_TO_COPY}
+                    git commit -m "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+
+                    echo "Pushing changes to ${TARGET_BRANCH}..."
+                    git push origin ${TARGET_BRANCH}
+                    '''
                 }
             }
         }
