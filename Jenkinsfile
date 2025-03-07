@@ -59,9 +59,9 @@ pipeline {
                             BACKUP_FILES=$(ls -tr ${file}_* 2>/dev/null)
                             BACKUP_COUNT=$(echo "$BACKUP_FILES" | wc -l)
 
-                            # Keep only the latest 3 backups, delete the oldest one
+                            # If more than 3 backups exist, delete only the oldest one
                             if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                OLDEST_BACKUP=$(echo "$BACKUP_FILES" | head -n 1)  # Get oldest file
+                                OLDEST_BACKUP=$(echo "$BACKUP_FILES" | head -n 1)  # Select the FIRST (OLDEST) file
                                 echo "Deleting oldest backup: $OLDEST_BACKUP"
                                 
                                 if [ -n "$OLDEST_BACKUP" ]; then
