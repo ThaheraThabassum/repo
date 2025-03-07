@@ -56,7 +56,7 @@ pipeline {
                             git push origin ${TARGET_BRANCH}
                             
                             # Keep only the latest 3 backups
-                            BACKUP_FILES=$(ls -t ${file}_* 2>/dev/null | tail -n +4)
+                            BACKUP_FILES=$(ls -tr ${file}_* 2>/dev/null | head -n -3)
                             if [ -n "$BACKUP_FILES" ]; then
                                 echo "Deleting old backups..."
                                 rm -f $BACKUP_FILES
