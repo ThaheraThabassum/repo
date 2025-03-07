@@ -59,15 +59,15 @@ pipeline {
                             BACKUP_FILES=$(ls -tr ${file}_* 2>/dev/null)
                             BACKUP_COUNT=$(echo "$BACKUP_FILES" | wc -l)
 
-                            # Keep only the latest 3 backups, delete older ones
+                            # Keep only the latest 3 backups, delete the oldest one
                             if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                OLD_BACKUPS=$(echo "$BACKUP_FILES" | head -n -3)  # Get oldest files
-                                echo "Deleting old backups: $OLD_BACKUPS"
+                                OLDEST_BACKUP=$(echo "$BACKUP_FILES" | head -n 1)  # Get oldest file
+                                echo "Deleting oldest backup: $OLDEST_BACKUP"
                                 
-                                if [ -n "$OLD_BACKUPS" ]; then
-                                    echo "$OLD_BACKUPS" | xargs rm -f
-                                    echo "$OLD_BACKUPS" | xargs git rm
-                                    git commit -m "Removed old backups for $file"
+                                if [ -n "$OLDEST_BACKUP" ]; then
+                                    rm -f "$OLDEST_BACKUP"
+                                    git rm "$OLDEST_BACKUP"
+                                    git commit -m "Removed oldest backup: $OLDEST_BACKUP"
                                     git push origin ${TARGET_BRANCH}
                                 fi
                             fi
