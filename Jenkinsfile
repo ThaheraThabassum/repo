@@ -5,7 +5,7 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_TO_COPY = "new_testing"
+        FILES_TO_COPY = "project1/project.py"
     }
     stages {
         stage('Prepare Repository') {
