@@ -37,11 +37,11 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                     cd repo
-                    TIMESTAMP=$(date +%Y%m%d%H%M%S)
+                    TIMESTAMP=$(date +%d_%m_%y %H:%M:%S)
 
                     echo "Checking if ${FILES_TO_COPY} exists..."
                     if [ -e "${FILES_TO_COPY}" ]; then
-                        BACKUP_FILE="${FILES_TO_COPY}_backup_${TIMESTAMP}"
+                        BACKUP_FILE="${FILES_TO_COPY}_${TIMESTAMP}"
                         mv ${FILES_TO_COPY} ${BACKUP_FILE}
                         git add ${BACKUP_FILE}
                         git commit -m "Backup existing ${FILES_TO_COPY} as ${BACKUP_FILE}"
