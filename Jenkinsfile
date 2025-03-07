@@ -6,7 +6,6 @@ pipeline {
         TARGET_BRANCH = 'automate'  // Branch to receive files
         SSH_KEY = 'jenkins-ssh-key1'  // Ensure this is the correct SSH credential
         FILES_TO_COPY = "new_testing"  // List of specific files/folders to copy
-        TIMESTAMP = "$(date +%d_%m_%y)"  // Date format: dd_mm_yy
     }
     stages {
         stage('Clone Repository') {
@@ -31,11 +30,14 @@ pipeline {
                     git checkout ${TARGET_BRANCH}
                     git pull origin ${TARGET_BRANCH}
 
+                    # Generate TIMESTAMP inside the shell script
+                    TIMESTAMP=$(date +%d_%m_%y)
+
                     echo "Backing up existing files before copying..."
                     for file in ${FILES_TO_COPY}; do
                         if [ -e "$file" ]; then
-                            mv "$file" "${file}_${TIMESTAMP}"
-                            echo "Backup created: ${file}_${TIMESTAMP}"
+                            mv "$file" "${file}_$TIMESTAMP"
+                            echo "Backup created: ${file}_$TIMESTAMP"
                         else
                             echo "No existing file found for $file, skipping backup."
                         fi
