@@ -90,7 +90,10 @@ pipeline {
 
                         echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                         git checkout ${SOURCE_BRANCH} -- ${FILES_TO_COPY}
-
+                        
+                        echo "Setting 777 permissions to ${FILES_TO_COPY}..."
+                        chmod 777 ${FILES_TO_COPY}
+                        
                         echo "Committing changes..."
                         git add ${FILES_TO_COPY}
                         git commit -m "Backup (if exists) & Copy: ${FILES_TO_COPY} from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
