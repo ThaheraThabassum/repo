@@ -5,7 +5,7 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        EXCEL_FILE = 'deploy_files.xlsx' // Name of your Excel file
+        EXCEL_FILE = 'deploy_files.xlsx'
     }
     stages {
         stage('Prepare Repository') {
@@ -43,42 +43,46 @@ pipeline {
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-                        # Extract file names from Excel using Python (requires Python and openpyxl)
-                        python3 -c "import openpyxl; wb = openpyxl.load_workbook('${EXCEL_FILE}'); ws = wb.active; files = [cell.value for cell in ws[1] if cell.value]; print(' '.join(files))" > files_list.txt
+                        # Check if Excel file exists before trying to load it
+                        if [ -f "${EXCEL_FILE}" ]; then
+                            python3 -c "import openpyxl; wb = openpyxl.load_workbook('${EXCEL_FILE}'); ws = wb.active; files = [cell.value for cell in ws[1] if cell.value]; print(' '.join(files))" > files_list.txt
 
-                        while IFS= read -r file; do
-                            if [ -e "$file" ]; then
-                                BACKUP_FILE="${file}_$TIMESTAMP"
-                                mv "$file" "$BACKUP_FILE"
-                                echo "Backup created: $BACKUP_FILE"
+                            while IFS= read -r file; do
+                                if [ -e "$file" ]; then
+                                    BACKUP_FILE="${file}_$TIMESTAMP"
+                                    mv "$file" "$BACKUP_FILE"
+                                    echo "Backup created: $BACKUP_FILE"
 
-                                git add "$BACKUP_FILE"
-                                git commit -m "Backup created: $BACKUP_FILE"
-                                git push origin ${TARGET_BRANCH}
+                                    git add "$BACKUP_FILE"
+                                    git commit -m "Backup created: $BACKUP_FILE"
+                                    git push origin ${TARGET_BRANCH}
 
-                                BACKUP_FILES=$(ls ${file}_* 2>/dev/null)
-                                if [ -n "$BACKUP_FILES" ]; then
-                                    SORTED_BACKUPS=$(echo "$BACKUP_FILES" | tr ' ' '\\n' | sort -t '_' -k 4n,4 -k 5n,5 -k 6n,6 -k 7n,7 -k 8n,8 | tr '\\n' ' ')
-                                    BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
+                                    BACKUP_FILES=$(ls ${file}_* 2>/dev/null)
+                                    if [ -n "$BACKUP_FILES" ]; then
+                                        SORTED_BACKUPS=$(echo "$BACKUP_FILES" | tr ' ' '\\n' | sort -t '_' -k 4n,4 -k 5n,5 -k 6n,6 -k 7n,7 -k 8n,8 | tr '\\n' ' ')
+                                        BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
 
-                                    if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                        OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
-                                        echo "Deleting oldest backup: $OLDEST_BACKUP"
+                                        if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                            OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
+                                            echo "Deleting oldest backup: $OLDEST_BACKUP"
 
-                                        if [ -n "$OLDEST_BACKUP" ]; then
-                                            rm -f "$OLDEST_BACKUP"
-                                            git rm "$OLDEST_BACKUP"
-                                            git commit -m "Removed oldest backup: $OLDEST_BACKUP"
-                                            git push origin ${TARGET_BRANCH}
+                                            if [ -n "$OLDEST_BACKUP" ]; then
+                                                rm -f "$OLDEST_BACKUP"
+                                                git rm "$OLDEST_BACKUP"
+                                                git commit -m "Removed oldest backup: $OLDEST_BACKUP"
+                                                git push origin ${TARGET_BRANCH}
+                                            fi
                                         fi
                                     fi
+                                else
+                                    echo "No existing file found for $file, skipping backup."
                                 fi
-                            else
-                                echo "No existing file found for $file, skipping backup."
-                            fi
-                        done < files_list.txt
+                            done < files_list.txt
 
-                        rm files_list.txt
+                            rm files_list.txt
+                        else
+                            echo "Error: Excel file '${EXCEL_FILE}' not found. Skipping backup stage."
+                        fi
                     '''
                 }
             }
@@ -93,25 +97,28 @@ pipeline {
 
                         echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
 
-                        # Extract file names from Excel using Python (requires Python and openpyxl)
-                        python3 -c "import openpyxl; wb = openpyxl.load_workbook('${EXCEL_FILE}'); ws = wb.active; files = [cell.value for cell in ws[1] if cell.value]; print(' '.join(files))" > files_list.txt
+                        if [ -f "${EXCEL_FILE}" ]; then
+                            python3 -c "import openpyxl; wb = openpyxl.load_workbook('${EXCEL_FILE}'); ws = wb.active; files = [cell.value for cell in ws[1] if cell.value]; print(' '.join(files))" > files_list.txt
 
-                        while IFS= read -r file; do
-                            git checkout ${SOURCE_BRANCH} -- "$file"
+                            while IFS= read -r file; do
+                                git checkout ${SOURCE_BRANCH} -- "$file"
 
-                            echo "Setting permissions to 777 for copied file: $file"
-                            chmod 777 "$file"
+                                echo "Setting permissions to 777 for copied file: $file"
+                                chmod 777 "$file"
 
-                            git add "$file"
-                        done < files_list.txt
+                                git add "$file"
+                            done < files_list.txt
 
-                        rm files_list.txt
+                            rm files_list.txt
 
-                        echo "Committing changes..."
-                        git commit -m "Backup (if exists) & Copy: Files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                            echo "Committing changes..."
+                            git commit -m "Backup (if exists) & Copy: Files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
 
-                        echo "Pushing changes to ${TARGET_BRANCH}..."
-                        git push origin ${TARGET_BRANCH}
+                            echo "Pushing changes to ${TARGET_BRANCH}..."
+                            git push origin ${TARGET_BRANCH}
+                        else
+                            echo "Error: Excel file '${EXCEL_FILE}' not found. Skipping copy stage."
+                        fi
                     '''
                 }
             }
