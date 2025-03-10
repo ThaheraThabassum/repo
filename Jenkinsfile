@@ -35,14 +35,14 @@ pipeline {
 
         stage('Read Files from Excel') {
             steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        echo "Reading deployment file names from ${EXCEL_FILE}..."
-                        
-                        # Install Python dependencies if required
-                        python3 -m pip install openpyxl --user || echo "openpyxl already installed"
+                script {
+                    echo "Reading deployment file names from ${EXCEL_FILE}..."
 
-                        # Run Python script to extract filenames from Excel
+                    // Ensure Python dependencies are installed
+                    sh 'python3 -m pip install --user openpyxl || echo "openpyxl already installed"'
+
+                    def files = sh(
+                        script: '''
                         python3 - <<EOF
 import openpyxl
 
@@ -57,7 +57,11 @@ for row in sheet.iter_rows(values_only=True):
 
 print(" ".join(file_list))  # Output file names in a single line
 EOF
-                    ''' | tee file_list.txt
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    writeFile(file: 'file_list.txt', text: files)
                 }
             }
         }
@@ -73,7 +77,7 @@ EOF
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                         
                         echo "Checking files for backup..."
-                        for file in $(cat file_list.txt); do
+                        for file in $(cat ../file_list.txt); do
                             if [ -e "$file" ]; then
                                 BACKUP_FILE="${file}_$TIMESTAMP"
                                 mv "$file" "$BACKUP_FILE"
@@ -118,15 +122,15 @@ EOF
                         git checkout ${TARGET_BRANCH}
                         
                         echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        for file in $(cat file_list.txt); do
+                        for file in $(cat ../file_list.txt); do
                             git checkout ${SOURCE_BRANCH} -- "$file"
                         done
 
                         echo "Setting permissions to 777 for copied files..."
-                        chmod 777 $(cat file_list.txt)
+                        chmod 777 $(cat ../file_list.txt)
 
                         echo "Committing changes..."
-                        git add $(cat file_list.txt)
+                        git add $(cat ../file_list.txt)
                         git commit -m "Backup (if exists) & Copy: Files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                         
                         echo "Pushing changes to ${TARGET_BRANCH}..."
