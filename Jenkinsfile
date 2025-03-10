@@ -6,6 +6,7 @@ pipeline {
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
         EXCEL_FILE = 'deploy_files.xlsx'
+        PYTHON_CMD = '/usr/bin/python3'
     }
     stages {
         stage('Prepare Repository') {
@@ -38,21 +39,21 @@ pipeline {
                 script {
                     echo "Ensuring pip and openpyxl are installed..."
                     sh '''
-                        if ! command -v python3 &>/dev/null; then
+                        if [ ! -x "${PYTHON_CMD}" ]; then
                             echo "Python3 is not installed. Exiting..."
                             exit 1
                         fi
-                        
+
                         if [ ! -d "venv" ]; then
                             echo "Creating virtual environment..."
-                            python3 -m venv venv
+                            ${PYTHON_CMD} -m venv venv
                         fi
 
                         source venv/bin/activate
 
-                        if ! python3 -c "import openpyxl" &>/dev/null; then
+                        if ! pip list | grep -q openpyxl; then
                             echo "Installing openpyxl..."
-                            pip install openpyxl
+                            pip install --no-cache-dir openpyxl
                         fi
                     '''
 
@@ -60,7 +61,7 @@ pipeline {
                     def files = sh(
                         script: '''
                         source venv/bin/activate
-                        python3 - <<EOF
+                        ${PYTHON_CMD} - <<EOF
 import openpyxl
 
 excel_path = "repo/${EXCEL_FILE}"
@@ -135,12 +136,12 @@ EOF
                         git checkout ${TARGET_BRANCH}
                         
                         echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        for file in $(cat ../file_list.txt); do
+                        while read -r file; do
                             git checkout ${SOURCE_BRANCH} -- "$file"
-                        done
+                        done < ../file_list.txt
 
                         echo "Setting permissions to 777 for copied files..."
-                        chmod 777 $(cat ../file_list.txt)
+                        xargs chmod 777 < ../file_list.txt
 
                         echo "Committing changes..."
                         git add $(cat ../file_list.txt)
