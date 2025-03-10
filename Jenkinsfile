@@ -36,17 +36,25 @@ pipeline {
         stage('Read Files from Excel') {
             steps {
                 script {
-                    echo "Reading deployment file names from ${EXCEL_FILE}..."
+                    echo "Ensuring pip is installed..."
+                    sh '''
+                        python3 -m ensurepip || echo "pip is already installed"
+                        python3 -m pip install --user openpyxl || echo "openpyxl already installed"
+                    '''
 
-                    // Ensure Python dependencies are installed
-                    sh 'python3 -m pip install --user openpyxl || echo "openpyxl already installed"'
+                    echo "Reading deployment file names from ${EXCEL_FILE}..."
 
                     def files = sh(
                         script: '''
                         python3 - <<EOF
 import openpyxl
+import os
 
-excel_path = "repo/${EXCEL_FILE}"
+excel_path = os.path.join("repo", "${EXCEL_FILE}")
+if not os.path.exists(excel_path):
+    print(f"Error: {excel_path} not found")
+    exit(1)
+
 wb = openpyxl.load_workbook(excel_path)
 sheet = wb.active
 
@@ -55,11 +63,19 @@ for row in sheet.iter_rows(values_only=True):
     if row and row[0]:  # Ensure row is not empty
         file_list.append(row[0].strip())
 
+if not file_list:
+    print("Error: No files found in Excel")
+    exit(1)
+
 print(" ".join(file_list))  # Output file names in a single line
 EOF
                         ''',
                         returnStdout: true
                     ).trim()
+
+                    if (files.isEmpty()) {
+                        error "No files to process. Check the Excel file."
+                    }
 
                     writeFile(file: 'file_list.txt', text: files)
                 }
@@ -77,7 +93,7 @@ EOF
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                         
                         echo "Checking files for backup..."
-                        for file in $(cat ../file_list.txt); do
+                        while IFS= read -r file; do
                             if [ -e "$file" ]; then
                                 BACKUP_FILE="${file}_$TIMESTAMP"
                                 mv "$file" "$BACKUP_FILE"
@@ -108,7 +124,7 @@ EOF
                             else
                                 echo "No existing file found for $file, skipping backup."
                             fi
-                        done
+                        done < ../file_list.txt
                     '''
                 }
             }
@@ -122,9 +138,9 @@ EOF
                         git checkout ${TARGET_BRANCH}
                         
                         echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        for file in $(cat ../file_list.txt); do
+                        while IFS= read -r file; do
                             git checkout ${SOURCE_BRANCH} -- "$file"
-                        done
+                        done < ../file_list.txt
 
                         echo "Setting permissions to 777 for copied files..."
                         chmod 777 $(cat ../file_list.txt)
