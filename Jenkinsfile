@@ -5,8 +5,7 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        EXCEL_FILE = 'deploy_files.xlsx'
-        PYTHON_CMD = '/usr/bin/python3'
+        EXCEL_FILE = 'deploy_files.xlsx' // Name of your Excel file
     }
     stages {
         stage('Prepare Repository') {
@@ -34,52 +33,6 @@ pipeline {
             }
         }
 
-        stage('Read Files from Excel') {
-            steps {
-                script {
-                    echo "Ensuring pip and openpyxl are installed..."
-                    sh '''
-                        if [ ! -x "${PYTHON_CMD}" ]; then
-                            echo "Python3 is not installed. Exiting..."
-                            exit 1
-                        fi
-
-                        if [ ! -d "venv" ]; then
-                            echo "Creating virtual environment..."
-                            ${PYTHON_CMD} -m venv venv
-                        fi
-
-                        source venv/bin/activate
-
-                        if ! pip list | grep -q openpyxl; then
-                            echo "Installing openpyxl..."
-                            pip install --no-cache-dir openpyxl
-                        fi
-                    '''
-
-                    echo "Reading deployment file names from ${EXCEL_FILE}..."
-                    def files = sh(
-                        script: '''
-                        source venv/bin/activate
-                        ${PYTHON_CMD} - <<EOF
-import openpyxl
-
-excel_path = "repo/${EXCEL_FILE}"
-wb = openpyxl.load_workbook(excel_path)
-sheet = wb.active
-
-file_list = [row[0].strip() for row in sheet.iter_rows(values_only=True) if row and row[0]]
-print(" ".join(file_list))
-EOF
-                        ''',
-                        returnStdout: true
-                    ).trim()
-
-                    writeFile(file: 'file_list.txt', text: files)
-                }
-            }
-        }
-
         stage('Backup Existing Files (If Present)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -89,28 +42,29 @@ EOF
                         git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
-                        
-                        echo "Checking files for backup..."
-                        for file in $(cat ../file_list.txt); do
+
+                        # Extract file names from Excel using Python (requires Python and openpyxl)
+                        python3 -c "import openpyxl; wb = openpyxl.load_workbook('${EXCEL_FILE}'); ws = wb.active; files = [cell.value for cell in ws[1] if cell.value]; print(' '.join(files))" > files_list.txt
+
+                        while IFS= read -r file; do
                             if [ -e "$file" ]; then
                                 BACKUP_FILE="${file}_$TIMESTAMP"
                                 mv "$file" "$BACKUP_FILE"
                                 echo "Backup created: $BACKUP_FILE"
-                                
+
                                 git add "$BACKUP_FILE"
                                 git commit -m "Backup created: $BACKUP_FILE"
                                 git push origin ${TARGET_BRANCH}
-                                
-                                # Maintain only last 3 backups
+
                                 BACKUP_FILES=$(ls ${file}_* 2>/dev/null)
                                 if [ -n "$BACKUP_FILES" ]; then
-                                    SORTED_BACKUPS=$(echo "$BACKUP_FILES" | tr ' ' '\\n' | sort | tr '\\n' ' ')
+                                    SORTED_BACKUPS=$(echo "$BACKUP_FILES" | tr ' ' '\\n' | sort -t '_' -k 4n,4 -k 5n,5 -k 6n,6 -k 7n,7 -k 8n,8 | tr '\\n' ' ')
                                     BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
 
                                     if [ "$BACKUP_COUNT" -gt 3 ]; then
                                         OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
                                         echo "Deleting oldest backup: $OLDEST_BACKUP"
-                                        
+
                                         if [ -n "$OLDEST_BACKUP" ]; then
                                             rm -f "$OLDEST_BACKUP"
                                             git rm "$OLDEST_BACKUP"
@@ -122,7 +76,9 @@ EOF
                             else
                                 echo "No existing file found for $file, skipping backup."
                             fi
-                        done
+                        done < files_list.txt
+
+                        rm files_list.txt
                     '''
                 }
             }
@@ -134,19 +90,26 @@ EOF
                     sh '''
                         cd repo
                         git checkout ${TARGET_BRANCH}
-                        
-                        echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        while read -r file; do
-                            git checkout ${SOURCE_BRANCH} -- "$file"
-                        done < ../file_list.txt
 
-                        echo "Setting permissions to 777 for copied files..."
-                        xargs chmod 777 < ../file_list.txt
+                        echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+
+                        # Extract file names from Excel using Python (requires Python and openpyxl)
+                        python3 -c "import openpyxl; wb = openpyxl.load_workbook('${EXCEL_FILE}'); ws = wb.active; files = [cell.value for cell in ws[1] if cell.value]; print(' '.join(files))" > files_list.txt
+
+                        while IFS= read -r file; do
+                            git checkout ${SOURCE_BRANCH} -- "$file"
+
+                            echo "Setting permissions to 777 for copied file: $file"
+                            chmod 777 "$file"
+
+                            git add "$file"
+                        done < files_list.txt
+
+                        rm files_list.txt
 
                         echo "Committing changes..."
-                        git add $(cat ../file_list.txt)
                         git commit -m "Backup (if exists) & Copy: Files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-                        
+
                         echo "Pushing changes to ${TARGET_BRANCH}..."
                         git push origin ${TARGET_BRANCH}
                     '''
