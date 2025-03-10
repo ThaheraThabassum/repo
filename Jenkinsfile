@@ -38,17 +38,28 @@ pipeline {
                 script {
                     echo "Ensuring pip and openpyxl are installed..."
                     sh '''
-                        if ! python3 -m pip --version >/dev/null 2>&1; then
-                            echo "pip not found. Installing..."
-                            sudo yum install python3-pip -y
+                        if ! command -v python3 &>/dev/null; then
+                            echo "Python3 is not installed. Exiting..."
+                            exit 1
+                        fi
+                        
+                        if [ ! -d "venv" ]; then
+                            echo "Creating virtual environment..."
+                            python3 -m venv venv
                         fi
 
-                        python3 -m pip install --user openpyxl
+                        source venv/bin/activate
+
+                        if ! python3 -c "import openpyxl" &>/dev/null; then
+                            echo "Installing openpyxl..."
+                            pip install openpyxl
+                        fi
                     '''
 
                     echo "Reading deployment file names from ${EXCEL_FILE}..."
                     def files = sh(
                         script: '''
+                        source venv/bin/activate
                         python3 - <<EOF
 import openpyxl
 
