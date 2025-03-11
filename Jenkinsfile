@@ -66,7 +66,7 @@ for index, row in df.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     # Define filename with timestamp
-    timestamp = os.popen("date +%Y%m%d").read().strip()
+    timestamp = os.popen("date +%d_%m_%y_%H_%M_%S").read().strip()
     dump_file = f"{table_name}_{timestamp}.sql"
 
     # Choose dump type
@@ -107,7 +107,7 @@ EOPYTHON
                     scp -o StrictHostKeyChecking=no /home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                     echo "Setting permissions for transferred files..."
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "chmod 777 /home/thahera/*.sql"
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 /home/thahera/*.sql"
                     """
                 }
             }
