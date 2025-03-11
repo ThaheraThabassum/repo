@@ -24,18 +24,20 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                     echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
 
                     echo "Successfully logged in!"
                     cd /home/thahera/
 
                     # Run Python script to process Excel and generate MySQL dumps
-                    python3 <<EOPYTHON
+                    python3 << 'EOPYTHON'
 import pandas as pd
 import os
 
 # Read Excel file from remote server
-excel_file = "${REMOTE_EXCEL_PATH}"  # FIX: Using Groovy triple-quoted string to avoid $
+excel_file = "/home/thahera/db_tables.xlsx"  # FIXED: Using a direct string, no Groovy interpolation
+
+# Load Excel data
 df = pd.read_excel(excel_file)
 
 # Loop through rows to generate dump scripts
