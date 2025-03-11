@@ -24,7 +24,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                     echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
 
                     echo "Successfully logged in!"
                     cd /home/thahera/
@@ -35,7 +35,7 @@ import pandas as pd
 import os
 
 # Read Excel file from remote server
-excel_file = "${REMOTE_EXCEL_PATH}"
+excel_file = "${REMOTE_EXCEL_PATH}"  # FIX: Using Groovy triple-quoted string to avoid $
 df = pd.read_excel(excel_file)
 
 # Loop through rows to generate dump scripts
@@ -61,7 +61,7 @@ for index, row in df.iterrows():
     # If WHERE condition exists, format it correctly
     if dump_command and where_condition and pd.notna(where_condition):
         where_condition = where_condition.replace('"', '\\"')  # Escape quotes
-        dump_command += f" --where=\"{where_condition}\""
+        dump_command += f" --where=\\"{where_condition}\\""
 
     # Execute dump command
     if dump_command:
