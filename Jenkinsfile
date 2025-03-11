@@ -33,7 +33,7 @@ pipeline {
             }
         }
 
-        stage('Backup Existing Files/Folders (If Present)') {
+        stage('Backup Existing Files/Folders') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -44,7 +44,7 @@ pipeline {
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-                        echo "Checking files and folders for backup..."
+                        echo "Creating backups..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
                                 BACKUP_ITEM="${item}_$TIMESTAMP"
@@ -54,22 +54,6 @@ pipeline {
                                 git add "$BACKUP_ITEM"
                                 git commit -m "Backup created: $BACKUP_ITEM"
                                 git push origin ${TARGET_BRANCH}
-
-                                # Cleanup old backups (keeping only last 3)
-                                BACKUP_ITEMS=$(ls -d ${item}_* 2>/dev/null)
-                                if [ -n "$BACKUP_ITEMS" ]; then
-                                    SORTED_BACKUPS=$(echo "$BACKUP_ITEMS" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
-                                    BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
-
-                                    if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                        OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
-                                        echo "Deleting oldest backup: $OLDEST_BACKUP"
-                                        rm -rf "$OLDEST_BACKUP"
-                                        git rm -r "$OLDEST_BACKUP"
-                                        git commit -m "Removed oldest backup: $OLDEST_BACKUP"
-                                        git push origin ${TARGET_BRANCH}
-                                    fi
-                                fi
                             else
                                 echo "No existing file or folder found for $item, skipping backup."
                             fi
@@ -89,13 +73,40 @@ pipeline {
                         echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                         while IFS= read -r item; do
                             git checkout ${SOURCE_BRANCH} -- "$item"
-                            echo "Setting 777 permissions to $item..."
                             chmod -R 777 "$item"
 
-                            echo "Committing changes for $item..."
                             git add "$item"
                             git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                             git push origin ${TARGET_BRANCH}
+                        done < ${FILES_LIST_FILE}
+                    '''
+                }
+            }
+        }
+
+        stage('Remove Old Backups (Keep Only 3)') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH}
+
+                        echo "Cleaning up old backups..."
+                        while IFS= read -r item; do
+                            BACKUP_ITEMS=$(ls -d ${item}_* 2>/dev/null)
+                            if [ -n "$BACKUP_ITEMS" ]; then
+                                SORTED_BACKUPS=$(echo "$BACKUP_ITEMS" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
+                                BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
+
+                                if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                    OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
+                                    echo "Deleting oldest backup: $OLDEST_BACKUP"
+                                    rm -rf "$OLDEST_BACKUP"
+                                    git rm -r "$OLDEST_BACKUP"
+                                    git commit -m "Removed oldest backup: $OLDEST_BACKUP"
+                                    git push origin ${TARGET_BRANCH}
+                                fi
+                            fi
                         done < ${FILES_LIST_FILE}
                     '''
                 }
