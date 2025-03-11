@@ -6,6 +6,8 @@ pipeline {
         REMOTE_HOST = '3.111.252.210'
         LOCAL_JSON_FILE = "db_config.json" // JSON file stored in Jenkins workspace
         REMOTE_JSON_PATH = "/home/thahera/db_config.json"
+        MYSQL_USER = "root"
+        MYSQL_PASSWORD = "AlgoTeam123" // MySQL password
     }
 
     stages {
@@ -49,6 +51,10 @@ json_file = "${REMOTE_JSON_PATH}"
 with open(json_file, "r") as file:
     data = json.load(file)
 
+# Define MySQL credentials
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "AlgoTeam123"
+
 # Loop through entries to generate dump scripts
 for entry in data:
     db_name = entry["database"]
@@ -63,16 +69,16 @@ for entry in data:
     # Choose dump type
     dump_command = None
     if option == "data":
-        dump_command = f"mysqldump -u root -p --no-create-info {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
-        dump_command = f"mysqldump -u root -p --no-data {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
     elif option == "both":
-        dump_command = f"mysqldump -u root -p {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     # If WHERE condition exists, format it correctly
     if dump_command and where_condition:
         where_condition = where_condition.replace('"', '\\"')  # Escape quotes
-        dump_command += f" --where=\\"{where_condition}\\""
+        dump_command += f" --where=\"{where_condition}\""
 
     # Execute dump command
     if dump_command:
