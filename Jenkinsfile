@@ -77,8 +77,8 @@ for entry in data:
 
     # If WHERE condition exists, format it correctly
     if dump_command and where_condition:
-        where_condition = where_condition.replace('"', '\\"')  # Escape quotes
-        dump_command += f" --where=\"{where_condition}\""
+        where_condition = where_condition.replace('"', '\\"')  # Escape double quotes
+        dump_command += f' --where="{where_condition}"'
 
     # Execute dump command
     if dump_command:
