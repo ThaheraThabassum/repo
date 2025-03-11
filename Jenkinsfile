@@ -25,11 +25,8 @@ pipeline {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
                         ssh -o StrictHostKeyChecking=no '${REMOTE_USER}@${REMOTE_HOST}' << 'EOF'
-
                         echo "Successfully logged in!"
                         cd /home/thahera/
-
-                        # Run Python script to process Excel and generate MySQL dumps
                         python3 << 'EOPYTHON'
 import pandas as pd
 import os
@@ -73,9 +70,8 @@ for index, row in df.iterrows():
 
 print("Scripts generated successfully in /home/thahera/")
 EOPYTHON
-
                         logout
-                        EOF
+EOF
                     """
                 }
             }
