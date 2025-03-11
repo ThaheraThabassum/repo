@@ -63,7 +63,7 @@ for entry in data:
     where_condition = entry.get("where_condition", None)
 
     # Define filename with timestamp
-    timestamp = os.popen("date +%d_%m_%y").read().strip()
+    timestamp = os.popen("date +%d_%m_%y_%H_%M_%S").read().strip()
     dump_file = f"{table_name}_{timestamp}.sql"
 
     # Choose dump type
