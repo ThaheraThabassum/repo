@@ -4,16 +4,26 @@ pipeline {
         SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8' // Jenkins SSH credential ID
         REMOTE_USER = 'thahera'
         REMOTE_HOST = '3.111.252.210'
-        LOCAL_EXCEL_FILE = "db_tables.xlsx"  // Excel file stored in Jenkins workspace
-        REMOTE_EXCEL_PATH = "/home/thahera/db_tables.xlsx"
+        LOCAL_JSON_FILE = "db_config.json" // JSON file stored in Jenkins workspace
+        REMOTE_JSON_PATH = "/home/thahera/db_config.json"
     }
+
     stages {
-        stage('Upload Excel to Remote Server') {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    echo "Checking out code from Git repository..."
+                    checkout scm // Pulls the latest code (including db_config.json)
+                }
+            }
+        }
+
+        stage('Upload JSON to Remote Server') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
+                    echo "Uploading JSON file to remote server..."
+                    scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_JSON_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_JSON_PATH}
                     """
                 }
             }
@@ -23,29 +33,31 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no '${REMOTE_USER}@${REMOTE_HOST}' << 'EOF'
-                        echo "Successfully logged in!"
-                        cd /home/thahera/
-                        python3 << 'EOPYTHON'
-import pandas as pd
+                    echo "Connecting to ${REMOTE_HOST} to generate scripts..."
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+
+                    echo "Successfully logged in!"
+                    cd /home/thahera/
+
+                    # Run Python script to process JSON and generate MySQL dumps
+                    python3 <<EOPYTHON
+import json
 import os
 
-# Read Excel file from remote server
-excel_file = "/home/thahera/db_tables.xlsx"
+# Read JSON file from remote server
+json_file = "${REMOTE_JSON_PATH}"
+with open(json_file, "r") as file:
+    data = json.load(file)
 
-# Load Excel data
-df = pd.read_excel(excel_file)
-
-# Loop through rows to generate dump scripts
-for index, row in df.iterrows():
-    db_name = row['database']
-    table_name = row['table']
-    option = row['option'].strip().lower()
-    where_condition = row.get('where_condition', None)
+# Loop through entries to generate dump scripts
+for entry in data:
+    db_name = entry["database"]
+    table_name = entry["table"]
+    option = entry["option"].strip().lower()
+    where_condition = entry.get("where_condition", None)
 
     # Define filename with timestamp
-    timestamp = "$(date +%Y%m%d)"
+    timestamp = os.popen("date +%Y%m%d").read().strip()
     dump_file = f"{table_name}_{timestamp}.sql"
 
     # Choose dump type
@@ -58,8 +70,8 @@ for index, row in df.iterrows():
         dump_command = f"mysqldump -u root -p {db_name} {table_name}"
 
     # If WHERE condition exists, format it correctly
-    if dump_command and where_condition and pd.notna(where_condition):
-        where_condition = where_condition.replace('"', '\\"')
+    if dump_command and where_condition:
+        where_condition = where_condition.replace('"', '\\"')  # Escape quotes
         dump_command += f" --where=\\"{where_condition}\\""
 
     # Execute dump command
@@ -70,8 +82,9 @@ for index, row in df.iterrows():
 
 print("Scripts generated successfully in /home/thahera/")
 EOPYTHON
-                        logout
-EOF
+
+                    logout
+                    EOF
                     """
                 }
             }
