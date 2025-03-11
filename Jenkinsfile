@@ -35,7 +35,7 @@ import pandas as pd
 import os
 
 # Read Excel file from remote server
-excel_file = '${REMOTE_EXCEL_PATH}'
+excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
 # Loop through rows to generate dump scripts
