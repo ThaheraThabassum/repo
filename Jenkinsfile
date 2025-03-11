@@ -4,8 +4,8 @@ pipeline {
         SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8' // Jenkins SSH credential ID
         REMOTE_USER = 'thahera'
         REMOTE_HOST = '3.111.252.210'
-        LOCAL_JSON_FILE = "db_config.json" // JSON file stored in Jenkins workspace
-        REMOTE_JSON_PATH = "/home/thahera/db_config.json"
+        LOCAL_EXCEL_FILE = "db_config.xlsx" // Excel file stored in Jenkins workspace
+        REMOTE_EXCEL_PATH = "/home/thahera/db_config.xlsx"
         MYSQL_USER = "root"
         MYSQL_PASSWORD = "AlgoTeam123" // MySQL password
     }
@@ -15,17 +15,17 @@ pipeline {
             steps {
                 script {
                     echo "Checking out code from Git repository..."
-                    checkout scm // Pulls the latest code (including db_config.json)
+                    checkout scm // Pulls the latest code (including db_config.xlsx)
                 }
             }
         }
 
-        stage('Upload JSON to Remote Server') {
+        stage('Upload Excel to Remote Server') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                    echo "Uploading JSON file to remote server..."
-                    scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_JSON_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_JSON_PATH}
+                    echo "Uploading Excel file to remote server..."
+                    scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -41,29 +41,31 @@ pipeline {
                     echo "Successfully logged in!"
                     cd /home/thahera/
 
-                    # Run Python script to process JSON and generate MySQL dumps
+                    # Ensure required Python packages are installed
+                    python3 -m pip install pandas openpyxl --user
+
+                    # Run Python script to process Excel and generate MySQL dumps
                     python3 <<EOPYTHON
-import json
+import pandas as pd
 import os
 
-# Read JSON file from remote server
-json_file = "${REMOTE_JSON_PATH}"
-with open(json_file, "r") as file:
-    data = json.load(file)
+# Read Excel file from remote server
+excel_file = "${REMOTE_EXCEL_PATH}"
+df = pd.read_excel(excel_file)
 
 # Define MySQL credentials
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-# Loop through entries to generate dump scripts
-for entry in data:
-    db_name = entry["database"]
-    table_name = entry["table"]
-    option = entry["option"].strip().lower()
-    where_condition = entry.get("where_condition", None)
+# Loop through rows to generate dump scripts
+for index, row in df.iterrows():
+    db_name = row["database"]
+    table_name = row["table"]
+    option = str(row["option"]).strip().lower()
+    where_condition = str(row.get("where_condition", "")).strip()
 
     # Define filename with timestamp
-    timestamp = os.popen("date +%d_%m_%y_%H_%M_%S").read().strip()
+    timestamp = os.popen("date +%Y%m%d").read().strip()
     dump_file = f"{table_name}_{timestamp}.sql"
 
     # Choose dump type
@@ -76,8 +78,8 @@ for entry in data:
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     # If WHERE condition exists, format it correctly
-    if dump_command and where_condition:
-        where_condition = where_condition.replace('"', '\\"')  # Escape double quotes
+    if dump_command and where_condition and where_condition.lower() != "nan":
+        where_condition = where_condition.replace('"', '\\"')  # Escape quotes
         dump_command += f' --where="{where_condition}"'
 
     # Execute dump command
