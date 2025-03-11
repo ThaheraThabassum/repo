@@ -2,7 +2,6 @@
     {
         "database": "kmb_queues",
         "table": "screen_properties",
-        "option": "data",
-        "where_condition": "id=40"
+        "option": "structure"
     }
 ]
