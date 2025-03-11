@@ -12,8 +12,8 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                    echo "Uploading Excel file to remote server..."
-                    scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
+                        echo "Uploading Excel file to remote server..."
+                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -23,19 +23,19 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                    echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
+                        echo "Connecting to ${REMOTE_HOST} to generate scripts..."
+                        ssh -o StrictHostKeyChecking=no '${REMOTE_USER}@${REMOTE_HOST}' << 'EOF'
 
-                    echo "Successfully logged in!"
-                    cd /home/thahera/
+                        echo "Successfully logged in!"
+                        cd /home/thahera/
 
-                    # Run Python script to process Excel and generate MySQL dumps
-                    python3 << 'EOPYTHON'
+                        # Run Python script to process Excel and generate MySQL dumps
+                        python3 << 'EOPYTHON'
 import pandas as pd
 import os
 
 # Read Excel file from remote server
-excel_file = "/home/thahera/db_tables.xlsx"  # FIXED: Using a direct string, no Groovy interpolation
+excel_file = "/home/thahera/db_tables.xlsx"
 
 # Load Excel data
 df = pd.read_excel(excel_file)
@@ -62,7 +62,7 @@ for index, row in df.iterrows():
 
     # If WHERE condition exists, format it correctly
     if dump_command and where_condition and pd.notna(where_condition):
-        where_condition = where_condition.replace('"', '\\"')  # Escape quotes
+        where_condition = where_condition.replace('"', '\\"')
         dump_command += f" --where=\\"{where_condition}\\""
 
     # Execute dump command
@@ -74,8 +74,8 @@ for index, row in df.iterrows():
 print("Scripts generated successfully in /home/thahera/")
 EOPYTHON
 
-                    logout
-                    EOF
+                        logout
+                        EOF
                     """
                 }
             }
