@@ -60,14 +60,10 @@ MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
 for index, row in df.iterrows():
-    db_name = row.get("database", "").strip()
-    table_name = row.get("table", "").strip()
-    option = str(row.get("option", "")).strip().lower()
+    db_name = row["database"]
+    table_name = row["table"]
+    option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
-
-    if not db_name or not table_name:
-        print(f"Skipping row {index}: Missing database or table name")
-        continue
 
     dump_file = f"{table_name}_{timestamp}.sql"
 
@@ -127,54 +123,55 @@ EOPYTHON
                         for sql_file in *.sql; do
                             table_name=\$(echo \$sql_file | cut -d'_' -f1)
                             timestamp=\$(echo \$sql_file | cut -d'_' -f2,3,4,5,6)
-                            
-                            # Extract db_name from SQL script if not explicitly provided
-                            db_name=\$(grep -oP '(?<=USE `).*(?=`);' \$sql_file | head -n 1)
-                            if [ -z "\$db_name" ]; then
-                                echo "Database name could not be extracted from \$sql_file, skipping..."
-                                continue
-                            fi
+                            db_name=\$(grep -oP '(?<=USE `).*(?=`);' \$sql_file)
 
-                            echo "Processing: Database=\$db_name, Table=\$table_name, File=\$sql_file"
+                            if [ -n "\$db_name" ]; then
+                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e 'USE `${db_name}`'
+                                if mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "SHOW TABLES LIKE '\$table_name'" | grep -q "\$table_name"; then
+                                    backup_table="\${table_name}_\${timestamp}"
+                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name}"
+                                    if [ \$? -eq 0 ]; then
+                                        echo "Backup created: \${backup_table}"
 
-                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "USE \${db_name}"
-                            
-                            if mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "SHOW TABLES LIKE '\$table_name'" | grep -q "\$table_name"; then
-                                backup_table="\${table_name}_\${timestamp}"
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name}"
+                                        if grep -q "--no-create-info" \$sql_file; then
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "DELETE FROM \${table_name}"
+                                            echo "Data deleted from \${table_name}"
+                                        elif grep -q "--no-data" \$sql_file; then
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \${table_name}"
+                                            echo "Structure deleted from \${table_name}"
+                                        else
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \${table_name}"
+                                            echo "Data and Structure deleted from \${table_name}"
+                                        fi
 
-                                if [ \$? -eq 0 ]; then
-                                    echo "Backup created: \${backup_table}"
+                                        mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
+                                        echo "Script executed: \$sql_file"
 
-                                    if grep -q "--no-create-info" \$sql_file; then
-                                        mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "DELETE FROM \${table_name}"
-                                        echo "Data deleted from \${table_name}"
-                                    elif grep -q "--no-data" \$sql_file; then
-                                        mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \${table_name}"
-                                        echo "Structure deleted from \${table_name}"
+                                        # Delete old backups, keep latest 4
+                                        backup_files=(\${table_name}_*.sql)
+                                        backup_files=(\$(ls -tr \${backup_files[@]}))
+                                        num_backups=\${#backup_files[@]}
+                                        if [ \$num_backups -gt 4 ]; then
+                                            delete_count=\$((num_backups - 4))
+                                            delete_files=""
+                                            for ((i=0; i<\$delete_count; i++)); do
+                                                delete_files+="\${backup_files[\$i]} "
+                                            done
+                                            for file in \$delete_files; do
+                                                rm \$file
+                                                echo "Deleted old backup: \$file"
+                                            done
+                                        fi
                                     else
-                                        mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \${table_name}"
-                                        echo "Data and Structure deleted from \${table_name}"
-                                    fi
-
-                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
-                                    echo "Script executed: \$sql_file"
-
-                                    # Keep only the latest 4 backups
-                                    backup_files=(\$(ls -tr \${table_name}_*.sql))
-                                    if [ \${#backup_files[@]} -gt 4 ]; then
-                                        delete_count=\$((${#backup_files[@]} - 4))
-                                        for ((i=0; i<\$delete_count; i++)); do
-                                            rm \${backup_files[\$i]}
-                                            echo "Deleted old backup: \${backup_files[\$i]}"
-                                        done
+                                        echo "Backup creation failed for \${table_name}"
                                     fi
                                 else
-                                    echo "Backup creation failed for \${table_name}"
+                                    echo "Table \${table_name} not found in database \${db_name}"
+                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
+                                    echo "Script executed: \$sql_file"
                                 fi
                             else
-                                echo "Table \${table_name} not found, executing script anyway..."
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
+                                echo "Database name not found in \$sql_file"
                             fi
                         done
 
