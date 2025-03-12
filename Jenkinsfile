@@ -52,7 +52,7 @@ import os
 import datetime
 
 excel_file = "${REMOTE_EXCEL_PATH}"
-df = pd.read_excel(excel_file)
+df = pd.read_excel(excel_file).fillna("")
 
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 generated_files = []
@@ -61,22 +61,22 @@ for index, row in df.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
-    where_condition = str(row.get("where_condition", "")).strip()
+    where_condition = str(row["where_condition"]).strip() if "where_condition" in row else ""
 
     dump_file = f"{table_name}_{timestamp}.sql"
     dump_command = None
-    
+
     if option == "data":
         dump_command = f"mysqldump -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
         dump_command = f"mysqldump -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
     elif option == "both":
         dump_command = f"mysqldump -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' {db_name} {table_name}"
-    
-    if dump_command and where_condition and where_condition.lower() != "nan":
+
+    if dump_command and where_condition:
         where_condition = where_condition.replace('"', '\\"')
         dump_command += f' --where="{where_condition}"'
-    
+
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
         os.system(dump_command)
@@ -85,7 +85,7 @@ for index, row in df.iterrows():
 
 with open("/home/thahera/generated_files.txt", "w") as f:
     for file in generated_files:
-        f.write(file + "\n")
+        f.write(file + "\\n")
 
 print("Scripts generated successfully in /home/thahera/")
 print(f"Timestamp used: {timestamp}")
