@@ -140,7 +140,9 @@ EOF
                             table_name=\$(echo "\$sql_file" | cut -d'_' -f1)
                             timestamp=\$(echo "\$sql_file" | cut -d'_' -f2,3,4,5,6)
 
-                            db_name=\$(grep -oP '(?<=USE \`).*(?=\`);' "\$sql_file" | head -n 1)
+                            # Fix: Correctly extract the database name
+                            db_name=\$(grep -oP '(?<=USE `)[^`]+(?=`;)' "\$sql_file" | head -n 1)
+
                             if [ -z "\$db_name" ]; then
                                 echo "Database name could not be extracted from \$sql_file, skipping..."
                                 continue
