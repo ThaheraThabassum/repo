@@ -129,19 +129,19 @@ EOPYTHON
                                 mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e 'USE `${db_name}`'
                                 if mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "SHOW TABLES LIKE '\$table_name'" | grep -q "\$table_name"; then
                                     backup_table="\${table_name}_\${timestamp}"
-                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE \`\$backup_table\` AS SELECT * FROM \`\$table_name\`"
+                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name}"
                                     if [ \$? -eq 0 ]; then
-                                        echo "Backup created: \`\$backup_table\`"
+                                        echo "Backup created: \${backup_table}"
 
                                         if grep -q "--no-create-info" \$sql_file; then
-                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "DELETE FROM \`\$table_name\`"
-                                            echo "Data deleted from \`\$table_name\`"
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "DELETE FROM \${table_name}"
+                                            echo "Data deleted from \${table_name}"
                                         elif grep -q "--no-data" \$sql_file; then
-                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \`\$table_name\`"
-                                            echo "Structure deleted from \`\$table_name\`"
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \${table_name}"
+                                            echo "Structure deleted from \${table_name}"
                                         else
-                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \`\$table_name\`"
-                                            echo "Data and Structure deleted from \`\$table_name\`"
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \${table_name}"
+                                            echo "Data and Structure deleted from \${table_name}"
                                         fi
 
                                         mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
@@ -160,10 +160,10 @@ EOPYTHON
                                             done
                                         fi
                                     else
-                                        echo "Backup creation failed for \`\$table_name\`"
+                                        echo "Backup creation failed for \${table_name}"
                                     fi
                                 else
-                                    echo "Table \`\$table_name\` not found in database \`\$db_name\`"
+                                    echo "Table \${table_name} not found in database \${db_name}"
                                     mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
                                     echo "Script executed: \$sql_file"
                                 fi
