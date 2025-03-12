@@ -140,7 +140,7 @@ for filename in os.listdir("/home/thahera"):
     if filename.endswith(".sql"):
         if filename.startswith("jenkins_testing_"):
             sql_file_name = filename
-            match = re.search(r'_(\d{2}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.sql$', filename)
+            match = re.search(r'_(\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2})\\.sql$', filename)
             if match:
                 timestamp = match.group(1)
                 break
@@ -173,7 +173,7 @@ else:
             os.system(source_cmd)
             print(f"Sourced script: {script_file}")
 
-            cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | grep -v '{sql_file_name}' | xargs rm -f"
+            cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | grep -v '${sql_file_name}' | xargs rm -f"
             os.system(cleanup_cmd)
             print("Cleaned up older backups.")
 
