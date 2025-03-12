@@ -44,7 +44,7 @@ pipeline {
                     cd /home/thahera/
 
                     # Ensure required Python packages are installed
-                    python3 -m pip install pandas openpyxl --user
+                    echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                     # Run Python script to process Excel and generate MySQL dumps
                     python3 <<EOPYTHON
@@ -105,7 +105,7 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                     echo "Transferring generated scripts to ${DEST_HOST}..."
-                    scp -o StrictHostKeyChecking=no /home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                     echo "Setting permissions for transferred files..."
                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
@@ -127,7 +127,7 @@ EOPYTHON
                     cd /home/thahera/
 
                     # Ensure required Python packages are installed
-                    python3 -m pip install pandas openpyxl --user
+                    echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                     # Read Excel and process each entry
                     python3 <<EOPYTHON
