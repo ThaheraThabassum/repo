@@ -51,7 +51,7 @@ import pandas as pd
 import os
 import datetime
 
-excel_file = "${REMOTE_EXCEL_PATH}"
+excel_file = "\${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
 MYSQL_USER = "root"
@@ -127,7 +127,7 @@ import pandas as pd
 import os
 import re
 
-excel_file = "${REMOTE_EXCEL_PATH}"
+excel_file = "\${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
 MYSQL_USER = "root"
