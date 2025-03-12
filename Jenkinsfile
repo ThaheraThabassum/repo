@@ -137,8 +137,10 @@ timestamp = None # Initialize timestamp
 
 for filename in os.listdir("/home/thahera"):
     if filename.endswith(".sql"):
-        timestamp = filename.split("_")[-4] + "_" + filename.split("_")[-3] + "_" + filename.split("_")[-2] + "_" + filename.split("_")[-1].split(".")[0]
-        break # get timestamp from first sql file.
+        parts = filename.split("_")
+        if len(parts) >= 5: # Ensure the filename has the expected structure
+            timestamp = "_".join(parts[-4:])[:-4] # Extract the timestamp part
+            break # get timestamp from first sql file.
 
 if timestamp is None:
     print("Error: No SQL files found.")
