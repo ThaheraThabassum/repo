@@ -19,6 +19,7 @@ pipeline {
                 script {
                     echo "Checking out code from Git repository..."
                     checkout scm
+                    echo "Code checkout completed."
                 }
             }
         }
@@ -29,21 +30,24 @@ pipeline {
                     sh """
                         echo "Uploading Excel file to remote server..."
                         scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
+                        echo "Excel file uploaded to ${DEST_HOST}:${REMOTE_EXCEL_PATH}."
                     """
                 }
             }
         }
 
-        stage('Generate and Transfer SQL Scripts') {
+        stage('Generate SQL Dump Files') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Generating SQL scripts on ${REMOTE_HOST}..."
+                        echo "Connecting to ${REMOTE_HOST} to generate scripts..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo "Python dependencies installed."
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -88,13 +92,25 @@ print(f"Timestamp used: {timestamp}")
 
 EOPYTHON
 
+                        logout
                         EOF
+                        echo "SQL dump files generated on ${REMOTE_HOST}."
+                    """
+                }
+            }
+        }
 
-                        echo "Transferring generated SQL scripts to ${DEST_HOST}..."
+        stage('Transfer and Set Permissions') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh """
+                        echo "Transferring generated scripts to ${DEST_HOST}..."
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+                        echo "SQL scripts transferred to ${DEST_HOST}."
 
                         echo "Setting permissions for transferred files..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        echo "Permissions set for SQL scripts on ${DEST_HOST}."
                     """
                 }
             }
@@ -111,6 +127,7 @@ EOPYTHON
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo "Python dependencies installed on ${DEST_HOST}."
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -143,17 +160,17 @@ else:
         table_name = row["table"]
         where_condition = str(row.get("where_condition", "")).strip()
 
-        check_table_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \\'{table_name}\\';'"
-        table_exists = os.system(check_table_cmd) == 0
-
-        if not table_exists:
-            print(f"Table {table_name} does not exist. Skipping backup and restore.")
-            continue
-
         backup_table = f"{table_name}_{timestamp}"
-        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
         os.system(backup_cmd)
-        print(f"Backup created: {backup_table}")
+
+        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
+        if os.system(verify_cmd) != 0:
+            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+            os.system(backup_cmd)
+            print(f"Backup created successfully: {backup_table}")
+        else:
+            print(f"Table {backup_table} already exists. No backup taken.")
 
         if where_condition and where_condition.lower() != "nan":
             delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
@@ -167,12 +184,14 @@ else:
 
     cleanup_cmd = f"ls -t /home/thahera/*_{timestamp}.sql | tail -n +4 | xargs rm -f"
     os.system(cleanup_cmd)
-    print("Cleaned up older backups, keeping the latest 4.")
+    print("Cleaned up older backups.")
 
     print("Database operations completed.")
 EOPYTHON
 
+                        logout
                         EOF
+                        echo "Database backup, delete, and restore operations completed on ${DEST_HOST}."
                     """
                 }
             }
