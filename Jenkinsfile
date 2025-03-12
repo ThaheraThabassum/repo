@@ -110,77 +110,67 @@ EOPYTHON
             }
         }
 
-        stage('Backup, Delete Data, and Restore') {
+        stage('Deploy SQL Scripts') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Processing databases on ${DEST_HOST}..."
+                        echo "Deploying SQL scripts on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
-                        echo "Successfully logged into ${DEST_HOST}"
+                        echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        for sql_file in *.sql; do
+                            table_name=\$(echo \$sql_file | cut -d'_' -f1)
+                            timestamp=\$(echo \$sql_file | cut -d'_' -f2,3,4,5,6)
+                            db_name=\$(grep -oP '(?<=USE `).*(?=`);' \$sql_file)
 
-                        python3 <<EOPYTHON
-import pandas as pd
-import os
-import datetime
-
-excel_file = "${REMOTE_EXCEL_PATH}"
-df = pd.read_excel(excel_file)
-
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "AlgoTeam123"
-
-timestamp = None
-
-for filename in os.listdir("/home/thahera"):
-    print(f'filename:{filename}')
-    if filename.endswith(".sql"):
-        parts = filename.split("_")
-        if len(parts) >= 5:
-            timestamp = "_".join(parts[-4:])[:-4]
-            break
-
-if timestamp is None:
-    print("Error: No SQL files found.")
-else:
-    print(f"Timestamp used: {timestamp}")
-
-    for index, row in df.iterrows():
-        db_name = row["database"]
-        table_name = row["table"]
-        where_condition = str(row.get("where_condition", "")).strip()
-
-        backup_table = f"{table_name}_{timestamp}"
-        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
-        os.system(backup_cmd)
-
-        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
-        if os.system(verify_cmd) != 0:
-            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
-            os.system(backup_cmd)
-            print(f"Backup created successfully: {backup_table}")
-        else:
-            print(f"Table {backup_table} already exists. No backup taken.")
-
-        if where_condition and where_condition.lower() != "nan":
-            delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
-            os.system(delete_cmd)
-            print(f"Deleted data from {table_name} where {where_condition}")
-
-        script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
-        source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
-        os.system(source_cmd)
-        print(f"Sourced script: {script_file}")
-
-    cleanup_cmd = f"ls -t /home/thahera/*_{timestamp}.sql | tail -n +4 | xargs rm -f"
-    os.system(cleanup_cmd)
-    print("Cleaned up older backups.")
-
-    print("Database operations completed.")
-EOPYTHON
+                            if [ -n "\$db_name" ]; then
+                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "USE \`\$db_name\`"
+                                if mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "SHOW TABLES LIKE '\$table_name'" | grep -q "\$table_name"; then
+                                    backup_table="\${table_name}_\${timestamp}"
+                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE \`\$backup_table\` AS SELECT * FROM \`\$table_name\`"
+                                    if [ \$? -eq 0 ]; then
+                                        echo "Backup created: \`\$backup_table\`"
+                                        
+                                        if grep -q "--no-create-info" \$sql_file; then
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "DELETE FROM \`\$table_name\`"
+                                            echo "Data deleted from \`\$table_name\`"
+                                        elif grep -q "--no-data" \$sql_file; then
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \`\$table_name\`"
+                                            echo "Structure deleted from \`\$table_name\`"
+                                        else
+                                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "TRUNCATE TABLE \`\$table_name\`"
+                                            echo "Data and Structure deleted from \`\$table_name\`"
+                                        fi
+                                        
+                                        mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
+                                        echo "Script executed: \$sql_file"
+                                        
+                                        # Delete old backups, keep latest 4
+                                        backup_files=(\${table_name}_*.sql)
+                                        backup_files=(\$(ls -tr \${backup_files[@]}))
+                                        num_backups=\${\#backup_files[@]}
+                                        if [ \$num_backups -gt 4 ]; then
+                                            delete_count=\$((num_backups - 4))
+                                            delete_files=(\${\{backup_files[@]:0:\$delete_count\}\})
+                                            for file in "\${delete_files[@]}"; do
+                                                rm \$file
+                                                echo "Deleted old backup: \$file"
+                                            done
+                                        fi
+                                    else
+                                        echo "Backup creation failed for \`\$table_name\`"
+                                    fi
+                                else
+                                    echo "Table \`\$table_name\` not found in database \`\$db_name\`"
+                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < \$sql_file
+                                    echo "Script executed: \$sql_file"
+                                fi
+                            else
+                                echo "Database name not found in \$sql_file"
+                            fi
+                        done
 
                         logout
                         EOF
