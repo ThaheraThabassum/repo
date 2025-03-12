@@ -150,7 +150,7 @@ EOPYTHON
                                         # Delete old backups, keep latest 4
                                         backup_files=(\${table_name}_*.sql)
                                         backup_files=(\$(ls -tr \${backup_files[@]}))
-                                        num_backups=\${\#backup_files[@]}
+                                        num_backups=\${#backup_files[@]}
                                         if [ \$num_backups -gt 4 ]; then
                                             delete_count=\$((num_backups - 4))
                                             delete_files=(\${\{backup_files[@]:0:\$delete_count\}\})
