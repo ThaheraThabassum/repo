@@ -38,8 +38,8 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     script {
                         def generatedFiles = sh(script: """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
-                                echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
+                                sudo -S apt install python3-pandas python3-openpyxl -y 2>/dev/null || apt install python3-pandas python3-openpyxl -y &&
                                 python3 <<EOPYTHON
 import pandas as pd
 import os
@@ -80,7 +80,7 @@ for index, row in df.iterrows():
 
 print("\\n".join(generated_files))
 EOPYTHON
-                            EOF
+                            '
                         """, returnStdout: true).trim().split('\n')
                         env.GENERATED_FILES = generatedFiles.join(' ')
                         echo "Generated files: ${env.GENERATED_FILES}"
@@ -97,7 +97,7 @@ EOPYTHON
                     scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/${env.GENERATED_FILES} ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                     echo "Setting permissions for transferred files..."
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/${env.GENERATED_FILES}'
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'sudo -S chmod 777 /home/thahera/${env.GENERATED_FILES} 2>/dev/null || chmod 777 /home/thahera/${env.GENERATED_FILES}'
                     """
                 }
             }
@@ -113,7 +113,7 @@ EOPYTHON
                     echo "Successfully logged into ${DEST_HOST}"
                     cd /home/thahera/
 
-                    echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                    sudo -S apt install python3-pandas python3-openpyxl -y 2>/dev/null || apt install python3-pandas python3-openpyxl -y
 
                     python3 <<EOPYTHON
 import pandas as pd
