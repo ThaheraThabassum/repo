@@ -51,7 +51,8 @@ import pandas as pd
 import os
 import datetime
 
-excel_file = "${REMOTE_EXCEL_PATH}"
+excel_file = "\${REMOTE_EXCEL_PATH}" # Corrected line
+
 df = pd.read_excel(excel_file)
 
 MYSQL_USER = "root"
@@ -128,7 +129,7 @@ import os
 import datetime
 import re # Import regular expression module
 
-excel_file = "${REMOTE_EXCEL_PATH}"
+excel_file = "\${REMOTE_EXCEL_PATH}" # Corrected line
 df = pd.read_excel(excel_file)
 
 MYSQL_USER = "root"
