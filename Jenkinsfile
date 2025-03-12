@@ -34,13 +34,12 @@ pipeline {
             }
         }
 
-        stage('Generate SQL Dump Files') {
+        stage('Generate and Transfer SQL Scripts') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Connecting to ${REMOTE_HOST} to generate scripts..."
+                        echo "Generating SQL scripts on ${REMOTE_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
-
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
@@ -89,18 +88,9 @@ print(f"Timestamp used: {timestamp}")
 
 EOPYTHON
 
-                        logout
                         EOF
-                    """
-                }
-            }
-        }
 
-        stage('Transfer and Set Permissions') {
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        echo "Transferring generated scripts to ${DEST_HOST}..."
+                        echo "Transferring generated SQL scripts to ${DEST_HOST}..."
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
@@ -153,17 +143,17 @@ else:
         table_name = row["table"]
         where_condition = str(row.get("where_condition", "")).strip()
 
-        backup_table = f"{table_name}_{timestamp}"
-        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
-        os.system(backup_cmd)
+        check_table_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \\'{table_name}\\';'"
+        table_exists = os.system(check_table_cmd) == 0
 
-        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
-        if os.system(verify_cmd) != 0:
-            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
-            os.system(backup_cmd)
-            print(f"Backup created successfully: {backup_table}")
-        else:
-            print(f"Table {backup_table} already exists. No backup taken.")
+        if not table_exists:
+            print(f"Table {table_name} does not exist. Skipping backup and restore.")
+            continue
+
+        backup_table = f"{table_name}_{timestamp}"
+        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+        os.system(backup_cmd)
+        print(f"Backup created: {backup_table}")
 
         if where_condition and where_condition.lower() != "nan":
             delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
@@ -177,12 +167,11 @@ else:
 
     cleanup_cmd = f"ls -t /home/thahera/*_{timestamp}.sql | tail -n +4 | xargs rm -f"
     os.system(cleanup_cmd)
-    print("Cleaned up older backups.")
+    print("Cleaned up older backups, keeping the latest 4.")
 
     print("Database operations completed.")
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
