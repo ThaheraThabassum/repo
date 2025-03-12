@@ -39,7 +39,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Generating SQL dump files on ${REMOTE_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
@@ -52,9 +52,6 @@ import datetime
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
-
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "AlgoTeam123"
 
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 generated_files = []
@@ -86,12 +83,12 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 with open("/home/thahera/generated_sql_files.txt", "w") as f:
-    f.write("\\n".join(generated_files))
+    f.write("\n".join(generated_files))
 
 print("Scripts generated successfully.")
 print(f"Timestamp used: {timestamp}")
 EOPYTHON
-                        EOF
+EOF
                     """
                 }
             }
@@ -119,8 +116,7 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Processing databases on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
-
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<EOF
                         echo "Successfully logged into ${DEST_HOST}"
                         cd /home/thahera/
 
@@ -136,7 +132,6 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-# Read generated SQL filenames
 with open("/home/thahera/generated_sql_files.txt", "r") as f:
     sql_files = {os.path.basename(line.strip()): line.strip() for line in f.readlines()}
 
@@ -145,42 +140,23 @@ for index, row in df.iterrows():
     table_name = row["table"]
     where_condition = str(row.get("where_condition", "")).strip()
 
-    sql_filename = None
-    for key in sql_files:
-        if key.startswith(f"{table_name}_"):
-            sql_filename = sql_files[key]
-            break
-
-    if sql_filename is None:
+    sql_filename = next((sql_files[key] for key in sql_files if key.startswith(f"{table_name}_")), None)
+    if not sql_filename:
         print(f"Error: No matching SQL file found for table {table_name}. Skipping...")
         continue
 
     backup_table = f"{table_name}_backup"
-
-    verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \\'{backup_table}\\';'"
+    verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
     if os.system(verify_cmd) != 0:
-        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
-        os.system(backup_cmd)
-        print(f"Backup created successfully: {backup_table}")
-    else:
-        print(f"Table {backup_table} already exists. No backup taken.")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'")
 
     if where_condition and where_condition.lower() != "nan":
-        delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
-        os.system(delete_cmd)
-        print(f"Deleted data from {table_name} where {where_condition}")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'")
 
-    source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {sql_filename}"
-    os.system(source_cmd)
-    print(f"Sourced script: {sql_filename}")
-
-    cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
-    os.system(cleanup_cmd)
-    print("Cleaned up older backups.")
-
-print("Database operations completed.")
+    os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {sql_filename}")
+    os.system(f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f")
 EOPYTHON
-                        EOF
+EOF
                     """
                 }
             }
