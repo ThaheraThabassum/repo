@@ -38,8 +38,8 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     script {
                         def generatedFiles = sh(script: """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
-                                echo "${SUDO_PASSWORD}" | sudo -S apt install python3-pandas python3-openpyxl -y &&
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+                                echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
                                 python3 <<EOPYTHON
 import pandas as pd
 import os
@@ -80,7 +80,7 @@ for index, row in df.iterrows():
 
 print("\\n".join(generated_files))
 EOPYTHON
-                            '
+                            EOF
                         """, returnStdout: true).trim().split('\n')
                         env.GENERATED_FILES = generatedFiles.join(' ')
                         echo "Generated files: ${env.GENERATED_FILES}"
