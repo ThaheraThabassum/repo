@@ -57,7 +57,7 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp here.
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -85,7 +85,7 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}") # Print the timestamp
+print(f"Timestamp used: {timestamp}")
 
 EOPYTHON
 
@@ -133,14 +133,14 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = None # Initialize timestamp
+timestamp = None
 
 for filename in os.listdir("/home/thahera"):
     if filename.endswith(".sql"):
         parts = filename.split("_")
-        if len(parts) >= 5: # Ensure the filename has the expected structure
-            timestamp = "_".join(parts[-4:])[:-4] # Extract the timestamp part
-            break # get timestamp from first sql file.
+        if len(parts) >= 5:
+            timestamp = "_".join(parts[-4:])[:-4]
+            break
 
 if timestamp is None:
     print("Error: No SQL files found.")
