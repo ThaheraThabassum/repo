@@ -117,7 +117,7 @@ EOPYTHON
                         echo "Processing databases on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
-                        echo "Successfully logged into ${DEST_HOST}"
+                        echo "Successfully logged into \${DEST_HOST}"
                         cd /home/thahera/
 
                         echo '\${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
