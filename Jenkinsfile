@@ -39,7 +39,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} /bin/bash <<'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
@@ -60,8 +60,8 @@ MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
 for index, row in df.iterrows():
-    db_name = row.get("database", "").strip()
-    table_name = row.get("table", "").strip()
+    db_name = str(row.get("database", "")).strip()
+    table_name = str(row.get("table", "")).strip()
     option = str(row.get("option", "")).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
@@ -108,7 +108,9 @@ EOF
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} /bin/bash <<EOF
+                            echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql
+EOF
                     """
                 }
             }
@@ -119,7 +121,7 @@ EOF
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Deploying SQL scripts on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<EOF
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} /bin/bash <<'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
@@ -140,8 +142,8 @@ EOF
                             table_name=\$(echo "\$sql_file" | cut -d'_' -f1)
                             timestamp=\$(echo "\$sql_file" | cut -d'_' -f2,3,4,5,6)
 
-                            # Fix: Correctly extract the database name
-                            db_name=\$(grep -oP '(?<=USE `)[^`]+(?=`;)' "\$sql_file" | head -n 1)
+                            # Alternative method for extracting database name
+                            db_name=\$(grep 'USE' "\$sql_file" | awk -F'`' '{print \$2}' | head -n 1)
 
                             if [ -z "\$db_name" ]; then
                                 echo "Database name could not be extracted from \$sql_file, skipping..."
@@ -151,20 +153,22 @@ EOF
                             echo "Processing: Database=\$db_name, Table=\$table_name, File=\$sql_file"
 
                             # Check if the table exists before making a backup
-                            if mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "USE \${db_name}; SHOW TABLES LIKE '\$table_name';" | grep -q "\$table_name"; then
+                            table_exists=\$(mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D "\$db_name" -e "SHOW TABLES LIKE '\$table_name';" | grep -c "\$table_name")
+
+                            if [ "\$table_exists" -gt 0 ]; then
                                 backup_table="\${table_name}_\${timestamp}"
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name}"
+                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D "\$db_name" -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name};"
 
                                 if [ \$? -eq 0 ]; then
                                     echo "Backup created: \${backup_table}"
-                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < "\$sql_file"
+                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" "\$db_name" < "\$sql_file"
                                     echo "Script executed: \$sql_file"
                                 else
                                     echo "Backup creation failed for \${table_name}"
                                 fi
                             else
                                 echo "Table \${table_name} not found, executing script anyway..."
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" < "\$sql_file"
+                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" "\$db_name" < "\$sql_file"
                             fi
                         done
 
