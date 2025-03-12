@@ -135,12 +135,16 @@ for index, row in df.iterrows():
 
     timestamp = os.popen("date +%Y%m%d").read().strip()
     backup_table = f"{table_name}_{timestamp}"
-    backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+    backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
     os.system(backup_cmd)
 
     verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \"{backup_table}\";'"
     if os.system(verify_cmd) == 0:
+        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+        os.system(backup_cmd)
         print(f"Backup created successfully: {backup_table}")
+    else:
+        print(f"Table {table_name} does not exist. No backup taken.")
 
     if where_condition and where_condition.lower() != "nan":
         delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
@@ -152,7 +156,7 @@ for index, row in df.iterrows():
     os.system(source_cmd)
     print(f"Sourced script: {script_file}")
 
-    cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f" #changed to 4, as you asked to keep 3 latest.
+    cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
     os.system(cleanup_cmd)
     print("Cleaned up older backups.")
 
