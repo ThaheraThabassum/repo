@@ -11,6 +11,7 @@ pipeline {
         MYSQL_USER = "root"
         MYSQL_PASSWORD = "AlgoTeam123"
         SUDO_PASSWORD = "1234"
+        DB_NAME = "your_database_name"  // Add this line to define DB_NAME
     }
 
     stages {
@@ -108,7 +109,7 @@ EOF
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} /bin/bash <<EOF
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} /bin/bash <<'EOF'
                             echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql
 EOF
                     """
@@ -126,6 +127,14 @@ EOF
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
+                        # Fetch the list of existing tables from the database
+                        existing_tables=\$(mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D ${DB_NAME} -e "SHOW TABLES;" | tail -n +2)
+
+                        if [ -z "\$existing_tables" ]; then
+                            echo "No tables found in the database. Exiting..."
+                            exit 0
+                        fi
+
                         # Check if SQL files exist
                         sql_files=( *.sql )
                         if [ -z "\${sql_files[0]}" ]; then
@@ -140,35 +149,27 @@ EOF
                             fi
 
                             table_name=\$(echo "\$sql_file" | cut -d'_' -f1)
-                            timestamp=\$(echo "\$sql_file" | cut -d'_' -f2,3,4,5,6)
 
-                            # Alternative method for extracting database name
-                            db_name=\$(grep 'USE' "\$sql_file" | awk -F'`' '{print \$2}' | head -n 1)
-
-                            if [ -z "\$db_name" ]; then
-                                echo "Database name could not be extracted from \$sql_file, skipping..."
+                            # Check if table exists in the database
+                            if ! echo "\$existing_tables" | grep -wq "\$table_name"; then
+                                echo "Table \${table_name} does not exist, skipping file: \${sql_file}"
                                 continue
                             fi
 
-                            echo "Processing: Database=\$db_name, Table=\$table_name, File=\$sql_file"
+                            timestamp=\$(echo "\$sql_file" | cut -d'_' -f2,3,4,5,6)
 
-                            # Check if the table exists before making a backup
-                            table_exists=\$(mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D "\$db_name" -e "SHOW TABLES LIKE '\$table_name';" | grep -c "\$table_name")
+                            echo "Processing: Table=\$table_name, File=\$sql_file"
 
-                            if [ "\$table_exists" -gt 0 ]; then
-                                backup_table="\${table_name}_\${timestamp}"
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D "\$db_name" -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name};"
+                            # Create backup of the existing table
+                            backup_table="\${table_name}_\${timestamp}"
+                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D ${DB_NAME} -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name};"
 
-                                if [ \$? -eq 0 ]; then
-                                    echo "Backup created: \${backup_table}"
-                                    mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" "\$db_name" < "\$sql_file"
-                                    echo "Script executed: \$sql_file"
-                                else
-                                    echo "Backup creation failed for \${table_name}"
-                                fi
+                            if [ \$? -eq 0 ]; then
+                                echo "Backup created: \${backup_table}"
+                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" ${DB_NAME} < "\$sql_file"
+                                echo "Script executed: \$sql_file"
                             else
-                                echo "Table \${table_name} not found, executing script anyway..."
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" "\$db_name" < "\$sql_file"
+                                echo "Backup creation failed for \${table_name}, skipping execution..."
                             fi
                         done
 
