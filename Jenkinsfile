@@ -153,7 +153,7 @@ EOPYTHON
                                         num_backups=\${#backup_files[@]}
                                         if [ \$num_backups -gt 4 ]; then
                                             delete_count=\$((num_backups - 4))
-                                            delete_files=(\${\{backup_files[@]:0:\$delete_count\}\})
+                                            delete_files=(${backup_files[@]:0:$delete_count})
                                             for file in "\${delete_files[@]}"; do
                                                 rm \$file
                                                 echo "Deleted old backup: \$file"
