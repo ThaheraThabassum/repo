@@ -126,6 +126,7 @@ EOPYTHON
 import pandas as pd
 import os
 import datetime
+import re # Import regular expression module
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
@@ -134,19 +135,20 @@ MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
 timestamp = None # Initialize timestamp
+sql_files = [f for f in os.listdir("/home/thahera") if f.endswith(".sql")]
 
-for filename in os.listdir("/home/thahera"):
-    if filename.endswith(".sql"):
-        parts = filename.split("_")
-        if len(parts) >= 5: # Ensure the filename has the expected structure
-            timestamp = "_".join(parts[-4:])[:-4] # Extract the timestamp part
-            break # get timestamp from first sql file.
-
-if timestamp is None:
-    print("Error: No SQL files found.")
+if sql_files:
+    first_sql_file = sql_files[0]
+    match = re.search(r'_(\d{2}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.sql$', first_sql_file) # Use regex to find timestamp
+    if match:
+        timestamp = match.group(1)
+        print(f"Timestamp extracted: {timestamp}")
+    else:
+        print(f"Error: Unable to extract timestamp from {first_sql_file}")
 else:
-    print(f"Timestamp used: {timestamp}")
+    print("Error: No SQL files found in /home/thahera/")
 
+if timestamp:
     for index, row in df.iterrows():
         db_name = row["database"]
         table_name = row["table"]
@@ -179,6 +181,9 @@ else:
         print("Cleaned up older backups.")
 
     print("Database operations completed.")
+else:
+    print("Error: Timestamp is not available. Script execution stopped.")
+
 EOPYTHON
 
                         logout
