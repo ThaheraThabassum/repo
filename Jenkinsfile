@@ -133,7 +133,7 @@ for index, row in df.iterrows():
     table_name = row["table"]
     where_condition = str(row.get("where_condition", "")).strip()
 
-    timestamp = os.popen("date +%Y%m%d").read().strip()
+    timestamp = os.popen("date +%d_%m_%y_%H_%M_%S").read().strip()
     backup_table = f"{table_name}_{timestamp}"
     backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
     os.system(backup_cmd)
