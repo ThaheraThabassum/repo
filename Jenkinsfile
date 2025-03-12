@@ -49,6 +49,7 @@ pipeline {
                         python3 <<EOPYTHON
 import pandas as pd
 import os
+import datetime
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
@@ -56,13 +57,14 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp here.
+
 for index, row in df.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
-    timestamp = os.popen("date +%d_%m_%y_%H_%M_%S").read().strip()
     dump_file = f"{table_name}_{timestamp}.sql"
 
     dump_command = None
@@ -83,6 +85,8 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
+print(f"Timestamp used: {timestamp}") # Print the timestamp
+
 EOPYTHON
 
                         logout
@@ -121,6 +125,7 @@ EOPYTHON
                         python3 <<EOPYTHON
 import pandas as pd
 import os
+import datetime
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
@@ -128,39 +133,50 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-for index, row in df.iterrows():
-    db_name = row["database"]
-    table_name = row["table"]
-    where_condition = str(row.get("where_condition", "")).strip()
+timestamp = None # Initialize timestamp
 
-    timestamp = os.popen("date +%d_%m_%y_%H_%M_%S").read().strip()
-    backup_table = f"{table_name}_{timestamp}"
-    backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
-    os.system(backup_cmd)
+for filename in os.listdir("/home/thahera"):
+    if filename.endswith(".sql"):
+        timestamp = filename.split("_")[-4] + "_" + filename.split("_")[-3] + "_" + filename.split("_")[-2] + "_" + filename.split("_")[-1].split(".")[0]
+        break # get timestamp from first sql file.
 
-    verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
-    if os.system(verify_cmd) == 0:
-        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+if timestamp is None:
+    print("Error: No SQL files found.")
+else:
+    print(f"Timestamp used: {timestamp}")
+
+    for index, row in df.iterrows():
+        db_name = row["database"]
+        table_name = row["table"]
+        where_condition = str(row.get("where_condition", "")).strip()
+
+        backup_table = f"{table_name}_{timestamp}"
+        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
         os.system(backup_cmd)
-        print(f"Backup created successfully: {backup_table}")
-    else:
-        print(f"Table {table_name} does not exist. No backup taken.")
 
-    if where_condition and where_condition.lower() != "nan":
-        delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
-        os.system(delete_cmd)
-        print(f"Deleted data from {table_name} where {where_condition}")
+        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
+        if os.system(verify_cmd) != 0:
+            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+            os.system(backup_cmd)
+            print(f"Backup created successfully: {backup_table}")
+        else:
+            print(f"Table {backup_table} already exists. No backup taken.")
 
-    script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
-    source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
-    os.system(source_cmd)
-    print(f"Sourced script: {script_file}")
+        if where_condition and where_condition.lower() != "nan":
+            delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
+            os.system(delete_cmd)
+            print(f"Deleted data from {table_name} where {where_condition}")
 
-    cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
-    os.system(cleanup_cmd)
-    print("Cleaned up older backups.")
+        script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
+        source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
+        os.system(source_cmd)
+        print(f"Sourced script: {script_file}")
 
-print("Database operations completed.")
+        cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
+        os.system(cleanup_cmd)
+        print("Cleaned up older backups.")
+
+    print("Database operations completed.")
 EOPYTHON
 
                         logout
