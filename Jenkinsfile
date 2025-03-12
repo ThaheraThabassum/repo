@@ -126,7 +126,7 @@ EOPYTHON
                             db_name=\$(grep -oP '(?<=USE `).*(?=`);' \$sql_file)
 
                             if [ -n "\$db_name" ]; then
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e 'USE `${db_name}`'
+                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "USE \`\$db_name\`"
                                 if mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "SHOW TABLES LIKE '\$table_name'" | grep -q "\$table_name"; then
                                     backup_table="\${table_name}_\${timestamp}"
                                     mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name}"
