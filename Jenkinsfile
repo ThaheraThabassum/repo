@@ -115,7 +115,7 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Processing databases on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@\${DEST_HOST} <<'EOF'
 
                         echo "Successfully logged into \${DEST_HOST}"
                         cd /home/thahera/
