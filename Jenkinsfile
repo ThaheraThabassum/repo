@@ -125,7 +125,7 @@ EOPYTHON
                         python3 <<EOPYTHON
 import pandas as pd
 import os
-import datetime
+import re
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
@@ -134,49 +134,48 @@ MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
 timestamp = None
+sql_file_name = None
 
 for filename in os.listdir("/home/thahera"):
     if filename.endswith(".sql"):
-        parts = filename.split("_")
-        if len(parts) >= 5:
-            timestamp = "_".join(parts[-4:])[:-4]
-            break
+        if filename.startswith("jenkins_testing_"):
+            sql_file_name = filename
+            match = re.search(r'_(\d{2}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.sql$', filename)
+            if match:
+                timestamp = match.group(1)
+                break
 
 if timestamp is None:
-    print("Error: No SQL files found.")
+    print("Error: No valid SQL files found.")
 else:
     print(f"Timestamp used: {timestamp}")
+    print(f"File used: {sql_file_name}")
 
     for index, row in df.iterrows():
         db_name = row["database"]
         table_name = row["table"]
-        where_condition = str(row.get("where_condition", "")).strip()
+        if table_name == "jenkins_testing":
 
-        backup_table = f"{table_name}_{timestamp}"
-        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
-        os.system(backup_cmd)
-
-        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
-        if os.system(verify_cmd) != 0:
-            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+            backup_table = f"{table_name}_{timestamp}"
+            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
             os.system(backup_cmd)
-            print(f"Backup created successfully: {backup_table}")
-        else:
-            print(f"Table {backup_table} already exists. No backup taken.")
 
-        if where_condition and where_condition.lower() != "nan":
-            delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
-            os.system(delete_cmd)
-            print(f"Deleted data from {table_name} where {where_condition}")
+            verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
+            if os.system(verify_cmd) != 0:
+                backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+                os.system(backup_cmd)
+                print(f"Backup created successfully: {backup_table}")
+            else:
+                print(f"Table {backup_table} already exists. No backup taken.")
 
-        script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
-        source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
-        os.system(source_cmd)
-        print(f"Sourced script: {script_file}")
+            script_file = f"/home/thahera/{sql_file_name}"
+            source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
+            os.system(source_cmd)
+            print(f"Sourced script: {script_file}")
 
-    cleanup_cmd = f"ls -t /home/thahera/*_{timestamp}.sql | tail -n +4 | xargs rm -f"
-    os.system(cleanup_cmd)
-    print("Cleaned up older backups.")
+            cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | grep -v '{sql_file_name}' | xargs rm -f"
+            os.system(cleanup_cmd)
+            print("Cleaned up older backups.")
 
     print("Database operations completed.")
 EOPYTHON
