@@ -19,7 +19,6 @@ pipeline {
                 script {
                     echo "Checking out code from Git repository..."
                     checkout scm
-                    echo "Code checkout completed."
                 }
             }
         }
@@ -30,7 +29,6 @@ pipeline {
                     sh """
                         echo "Uploading Excel file to remote server..."
                         scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
-                        echo "Excel file uploaded to ${DEST_HOST}:${REMOTE_EXCEL_PATH}."
                     """
                 }
             }
@@ -47,7 +45,6 @@ pipeline {
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
-                        echo "Python dependencies installed."
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -94,7 +91,6 @@ EOPYTHON
 
                         logout
                         EOF
-                        echo "SQL dump files generated on ${REMOTE_HOST}."
                     """
                 }
             }
@@ -106,11 +102,9 @@ EOPYTHON
                     sh """
                         echo "Transferring generated scripts to ${DEST_HOST}..."
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
-                        echo "SQL scripts transferred to ${DEST_HOST}."
 
                         echo "Setting permissions for transferred files..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
-                        echo "Permissions set for SQL scripts on ${DEST_HOST}."
                     """
                 }
             }
@@ -127,7 +121,6 @@ EOPYTHON
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
-                        echo "Python dependencies installed on ${DEST_HOST}."
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -191,7 +184,6 @@ EOPYTHON
 
                         logout
                         EOF
-                        echo "Database backup, delete, and restore operations completed on ${DEST_HOST}."
                     """
                 }
             }
