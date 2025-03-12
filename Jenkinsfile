@@ -162,9 +162,10 @@ EOF
 
                                     # Keep only the latest 4 backups
                                     backup_files=(\$(ls -tr \${table_name}_*.sql))
-                                    if [ \${#backup_files[@]} -gt 4 ]; then
-                                        delete_count=\$((${#backup_files[@]} - 4))
-                                        for ((i=0; i<\$delete_count; i++)); do
+                                    backup_count=\${#backup_files[@]}
+                                    if [ \$backup_count -gt 4 ]; then
+                                        delete_count=\$((backup_count - 4))
+                                        for ((i=0; i<delete_count; i++)); do
                                             rm \${backup_files[\$i]}
                                             echo "Deleted old backup: \${backup_files[\$i]}"
                                         done
