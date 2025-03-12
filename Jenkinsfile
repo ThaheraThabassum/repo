@@ -174,9 +174,9 @@ else:
         os.system(source_cmd)
         print(f"Sourced script: {script_file}")
 
-        cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
-        os.system(cleanup_cmd)
-        print("Cleaned up older backups.")
+    cleanup_cmd = f"ls -t /home/thahera/*_{timestamp}.sql | tail -n +4 | xargs rm -f"
+    os.system(cleanup_cmd)
+    print("Cleaned up older backups.")
 
     print("Database operations completed.")
 EOPYTHON
