@@ -44,7 +44,7 @@ pipeline {
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo '\${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -104,7 +104,7 @@ EOPYTHON
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "\${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -120,7 +120,7 @@ EOPYTHON
                         echo "Successfully logged into ${DEST_HOST}"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo '\${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                         python3 <<EOPYTHON
 import pandas as pd
