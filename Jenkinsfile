@@ -139,7 +139,7 @@ sql_files = [f for f in os.listdir("/home/thahera") if f.endswith(".sql")]
 
 if sql_files:
     first_sql_file = sql_files[0]
-    match = re.search(r'_(\d{2}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.sql$', first_sql_file) # Use regex to find timestamp
+    match = re.search(r'_(\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2})\\.sql$', first_sql_file) # Use regex to find timestamp
     if match:
         timestamp = match.group(1)
         print(f"Timestamp extracted: {timestamp}")
