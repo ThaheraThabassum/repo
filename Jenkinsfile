@@ -11,7 +11,6 @@ pipeline {
         MYSQL_USER = "root"
         MYSQL_PASSWORD = "AlgoTeam123"
         SUDO_PASSWORD = "1234"
-        DB_NAME = "your_database_name"  // Add this line to define DB_NAME
     }
 
     stages {
@@ -40,7 +39,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} /bin/bash <<'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
@@ -58,17 +57,13 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp here.
 
 for index, row in df.iterrows():
-    db_name = str(row.get("database", "")).strip()
-    table_name = str(row.get("table", "")).strip()
-    option = str(row.get("option", "")).strip().lower()
+    db_name = row["database"]
+    table_name = row["table"]
+    option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
-
-    if not db_name or not table_name:
-        print(f"Skipping row {index}: Missing database or table name")
-        continue
 
     dump_file = f"{table_name}_{timestamp}.sql"
 
@@ -80,8 +75,8 @@ for index, row in df.iterrows():
     elif option == "both":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
-    if dump_command and where_condition.lower() != "nan":
-        where_condition = where_condition.replace('"', '\"')
+    if dump_command and where_condition and where_condition.lower() != "nan":
+        where_condition = where_condition.replace('"', '\\"')
         dump_command += f' --where="{where_condition}"'
 
     if dump_command:
@@ -90,12 +85,12 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}")
+print(f"Timestamp used: {timestamp}") # Print the timestamp
 
 EOPYTHON
 
-                        exit
-EOF
+                        logout
+                        EOF
                     """
                 }
             }
@@ -109,72 +104,85 @@ EOF
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} /bin/bash <<'EOF'
-                            echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql
-EOF
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
         }
 
-        stage('Deploy SQL Scripts') {
+        stage('Backup, Delete Data, and Restore') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Deploying SQL scripts on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} /bin/bash <<'EOF'
+                        echo "Processing databases on ${DEST_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
-                        echo "Successfully logged in!"
+                        echo "Successfully logged into ${DEST_HOST}"
                         cd /home/thahera/
 
-                        # Fetch the list of existing tables from the database
-                        existing_tables=\$(mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D ${DB_NAME} -e "SHOW TABLES;" | tail -n +2)
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
-                        if [ -z "\$existing_tables" ]; then
-                            echo "No tables found in the database. Exiting..."
-                            exit 0
-                        fi
+                        python3 <<EOPYTHON
+import pandas as pd
+import os
+import datetime
 
-                        # Check if SQL files exist
-                        sql_files=( *.sql )
-                        if [ -z "\${sql_files[0]}" ]; then
-                            echo "No SQL files found. Exiting..."
-                            exit 0
-                        fi
+excel_file = "${REMOTE_EXCEL_PATH}"
+df = pd.read_excel(excel_file)
 
-                        for sql_file in *.sql; do
-                            if [ ! -f "\$sql_file" ]; then
-                                echo "No SQL files found, skipping..."
-                                continue
-                            fi
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "AlgoTeam123"
 
-                            table_name=\$(echo "\$sql_file" | cut -d'_' -f1)
+timestamp = None # Initialize timestamp
 
-                            # Check if table exists in the database
-                            if ! echo "\$existing_tables" | grep -wq "\$table_name"; then
-                                echo "Table \${table_name} does not exist, skipping file: \${sql_file}"
-                                continue
-                            fi
+for filename in os.listdir("/home/thahera"):
+    if filename.endswith(".sql"):
+        parts = filename.split("_")
+        if len(parts) >= 5: # Ensure the filename has the expected structure
+            timestamp = "_".join(parts[-4:])[:-4] # Extract the timestamp part
+            break # get timestamp from first sql file.
 
-                            timestamp=\$(echo "\$sql_file" | cut -d'_' -f2,3,4,5,6)
+if timestamp is None:
+    print("Error: No SQL files found.")
+else:
+    print(f"Timestamp used: {timestamp}")
 
-                            echo "Processing: Table=\$table_name, File=\$sql_file"
+    for index, row in df.iterrows():
+        db_name = row["database"]
+        table_name = row["table"]
+        where_condition = str(row.get("where_condition", "")).strip()
 
-                            # Create backup of the existing table
-                            backup_table="\${table_name}_\${timestamp}"
-                            mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" -D ${DB_NAME} -e "CREATE TABLE \${backup_table} AS SELECT * FROM \${table_name};"
+        backup_table = f"{table_name}_{timestamp}"
+        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
+        os.system(backup_cmd)
 
-                            if [ \$? -eq 0 ]; then
-                                echo "Backup created: \${backup_table}"
-                                mysql -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" ${DB_NAME} < "\$sql_file"
-                                echo "Script executed: \$sql_file"
-                            else
-                                echo "Backup creation failed for \${table_name}, skipping execution..."
-                            fi
-                        done
+        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
+        if os.system(verify_cmd) != 0:
+            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+            os.system(backup_cmd)
+            print(f"Backup created successfully: {backup_table}")
+        else:
+            print(f"Table {backup_table} already exists. No backup taken.")
 
-                        exit
-EOF
+        if where_condition and where_condition.lower() != "nan":
+            delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
+            os.system(delete_cmd)
+            print(f"Deleted data from {table_name} where {where_condition}")
+
+        script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
+        source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
+        os.system(source_cmd)
+        print(f"Sourced script: {script_file}")
+
+        cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
+        os.system(cleanup_cmd)
+        print("Cleaned up older backups.")
+
+    print("Database operations completed.")
+EOPYTHON
+
+                        logout
+                        EOF
                     """
                 }
             }
