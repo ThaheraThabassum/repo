@@ -57,7 +57,7 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp.
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp here.
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -85,7 +85,7 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}") # Print timestamp
+print(f"Timestamp used: {timestamp}") # Print the timestamp
 
 EOPYTHON
 
@@ -120,51 +120,27 @@ EOPYTHON
                         echo "Successfully logged into ${DEST_HOST}"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl python3-mysql.connector -y
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                         python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
-import mysql.connector
 
-excel_file = "/home/thahera/db_config.xlsx"
+excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-# Establish MySQL connection
-try:
-    conn = mysql.connector.connect(
-        host="localhost",
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD
-    )
-    if conn.is_connected():
-        print("Connection successful")
-
-        cursor = conn.cursor()
-        cursor.execute("SHOW DATABASES;")
-        databases = cursor.fetchall()
-        print("Available Databases:")
-        for db in databases:
-            print(db[0])
-
-        cursor.close()
-        conn.close()
-except Exception as e:
-    print(f"Error: {e}")
-    exit(1)
-
-timestamp = None  # Initialize timestamp
+timestamp = None # Initialize timestamp
 
 for filename in os.listdir("/home/thahera"):
     if filename.endswith(".sql"):
         parts = filename.split("_")
-        if len(parts) >= 5: # Ensure filename structure is valid
-            timestamp = "_".join(parts[-4:])[:-4]  # Extract timestamp
-            break  # Get timestamp from first SQL file
+        if len(parts) >= 5: # Ensure the filename has the expected structure
+            timestamp = "_".join(parts[-4:])[:-4] # Extract the timestamp part
+            break # get timestamp from first sql file.
 
 if timestamp is None:
     print("Error: No SQL files found.")
@@ -177,8 +153,10 @@ else:
         where_condition = str(row.get("where_condition", "")).strip()
 
         backup_table = f"{table_name}_{timestamp}"
-        
-        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \"{backup_table}\";'"
+        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
+        os.system(backup_cmd)
+
+        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
         if os.system(verify_cmd) != 0:
             backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
             os.system(backup_cmd)
