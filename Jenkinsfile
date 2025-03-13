@@ -135,7 +135,7 @@ EOPYTHON
                             echo "Reading extracted database names..."
                             while read db; do
                                 echo "Using database: \$db"
-                                mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "USE \\\`$db\\\`; SHOW TABLES;"
+                                mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e 'USE `"'"$db"'"`; SHOW TABLES;'
                             done < /home/thahera/db_list.txt
 
                         else
