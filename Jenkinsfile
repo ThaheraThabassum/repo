@@ -89,7 +89,6 @@ print(f"Timestamp used: {timestamp}") # Print the timestamp
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
@@ -110,11 +109,11 @@ EOPYTHON
             }
         }
 
-        stage('Backup, Delete Data, and Restore') {
+        stage('Process Database Operations') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Processing databases on ${DEST_HOST}..."
+                        echo "Processing databases on ${DEST_HOST} based on db_config.xlsx..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
                         echo "Successfully logged into ${DEST_HOST}"
@@ -133,55 +132,32 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = None # Initialize timestamp
+for index, row in df.iterrows():
+    db_name = row["database"]
+    table_name = row["table"]
+    where_condition = str(row.get("where_condition", "")).strip()
 
-for filename in os.listdir("/home/thahera"):
-    if filename.endswith(".sql"):
-        parts = filename.split("_")
-        if len(parts) >= 5: # Ensure the filename has the expected structure
-            timestamp = "_".join(parts[-4:])[:-4] # Extract the timestamp part
-            break # get timestamp from first sql file.
+    backup_table = f"{table_name}_backup_{datetime.datetime.now().strftime('%d_%m_%y_%H_%M_%S')}"
+    os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'")
+    print(f"Backup created: {backup_table}")
 
-if timestamp is None:
-    print("Error: No SQL files found.")
-else:
-    print(f"Timestamp used: {timestamp}")
+    if where_condition and where_condition.lower() != "nan":
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'")
+        print(f"Deleted data from {table_name} where {where_condition}")
 
-    for index, row in df.iterrows():
-        db_name = row["database"]
-        table_name = row["table"]
-        where_condition = str(row.get("where_condition", "")).strip()
+    sql_files = sorted([f for f in os.listdir("/home/thahera") if f.startswith(table_name) and f.endswith(".sql")], key=os.path.getmtime, reverse=True)
+    if sql_files:
+        latest_sql_file = sql_files[0]
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{latest_sql_file}")
+        print(f"Sourced latest script: {latest_sql_file}")
 
-        backup_table = f"{table_name}_{timestamp}"
-        backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name};'"
-        os.system(backup_cmd)
+    if len(sql_files) > 4:
+        for old_file in sql_files[4:]:
+            os.remove(f"/home/thahera/{old_file}")
+            print(f"Deleted old backup: {old_file}")
 
-        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \'{backup_table}\';'"
-        if os.system(verify_cmd) != 0:
-            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
-            os.system(backup_cmd)
-            print(f"Backup created successfully: {backup_table}")
-        else:
-            print(f"Table {backup_table} already exists. No backup taken.")
-
-        if where_condition and where_condition.lower() != "nan":
-            delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
-            os.system(delete_cmd)
-            print(f"Deleted data from {table_name} where {where_condition}")
-
-        script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
-        source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
-        os.system(source_cmd)
-        print(f"Sourced script: {script_file}")
-
-        cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
-        os.system(cleanup_cmd)
-        print("Cleaned up older backups.")
-
-    print("Database operations completed.")
+print("Database operations completed.")
 EOPYTHON
-
-                        logout
                         EOF
                     """
                 }
