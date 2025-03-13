@@ -28,7 +28,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no "${WORKSPACE}/${LOCAL_EXCEL_FILE}" ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
+                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -50,13 +50,12 @@ pipeline {
 import pandas as pd
 import os
 import datetime
-import subprocess
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
-MYSQL_USER = "${MYSQL_USER}"
-MYSQL_PASSWORD = "${MYSQL_PASSWORD}"
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "AlgoTeam123"
 
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
@@ -70,24 +69,23 @@ for index, row in df.iterrows():
 
     dump_command = None
     if option == "data":
-        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
+        dump_command = f"mysqldump -h ${DEST_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
-        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
+        dump_command = f"mysqldump -h ${DEST_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
     elif option == "both":
-        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
+        dump_command = f"mysqldump -h ${DEST_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     if dump_command and where_condition and where_condition.lower() != "nan":
-        where_condition = where_condition.replace('"', '\\"')
+        where_condition = where_condition.replace('"', '\"')
         dump_command += f' --where="{where_condition}"'
 
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
-        subprocess.run(dump_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
+        os.system(dump_command)
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
 print(f"Timestamp used: {timestamp}")
-
 EOPYTHON
 
                         logout
@@ -97,82 +95,64 @@ EOPYTHON
             }
         }
 
-        stage('Transfer and Set Permissions') {
+        stage('Backup, Delete Data, and Restore') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Transferring generated scripts to ${DEST_HOST}..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
-
-                        echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
-                    """
-                }
-            }
-        }
-
-        stage('MySQL Operations') {
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        echo "Performing MySQL operations on ${DEST_HOST}..."
+                        echo "Processing databases on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo "Successfully logged into ${DEST_HOST}"
                         cd /home/thahera/
+
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                         python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
-import subprocess
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
-MYSQL_USER = "${MYSQL_USER}"
-MYSQL_PASSWORD = "${MYSQL_PASSWORD}"
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "AlgoTeam123"
+MYSQL_HOST = "${DEST_HOST}"
 
-def get_latest_dump_file(table_name):
-    files = [f for f in os.listdir("/home/thahera/") if f.startswith(table_name) and f.endswith(".sql")]
-    files.sort(key=lambda x: os.path.getmtime(os.path.join("/home/thahera/", x)), reverse=True)
-    return files[0] if files else None
+# Extract timestamp from SQL files
+for filename in os.listdir("/home/thahera"):
+    if filename.endswith(".sql"):
+        parts = filename.split("_")
+        if len(parts) >= 5:
+            timestamp = "_".join(parts[-4:])[:-4]
+            break
+else:
+    print("Error: No SQL files found.")
+    exit(1)
+
+print(f"Timestamp used: {timestamp}")
 
 for index, row in df.iterrows():
     db_name = row["database"]
     table_name = row["table"]
-    action = str(row.get("action", "")).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
-    if action == "backup":
-        backup_file = f"{table_name}_backup_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.sql"
-        backup_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name} > /home/thahera/{backup_file}"
-        subprocess.run(backup_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
-        print(f"Backup created: {backup_file}")
+    backup_table = f"{table_name}_{timestamp}"
+    backup_cmd = f"mysql -h {MYSQL_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE IF NOT EXISTS {backup_table} AS SELECT * FROM {table_name};'"
+    os.system(backup_cmd)
+    print(f"Backup created: {backup_table}")
 
-        backups = [f for f in os.listdir("/home/thahera/") if f.startswith(f"{table_name}_backup_") and f.endswith(".sql")]
-        backups.sort(key=lambda x: os.path.getmtime(os.path.join("/home/thahera/", x)), reverse=True)
-        for old_backup in backups[4:]:
-            os.remove(os.path.join("/home/thahera/", old_backup))
-            print(f"Deleted old backup: {old_backup}")
+    if where_condition and where_condition.lower() != "nan":
+        delete_cmd = f"mysql -h {MYSQL_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
+        os.system(delete_cmd)
+        print(f"Deleted data from {table_name} where {where_condition}")
 
-    if action == "delete":
-        delete_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'DELETE FROM {db_name}.{table_name}'"
-        if where_condition and where_condition.lower() != "nan":
-            where_condition = where_condition.replace('"', '\\"')
-            delete_command += f" -e 'DELETE FROM {db_name}.{table_name} WHERE {where_condition}'"
-        subprocess.run(delete_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
-        print(f"Content deleted from {table_name}")
+    script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
+    source_cmd = f"mysql -h {MYSQL_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
+    os.system(source_cmd)
+    print(f"Sourced script: {script_file}")
 
-    if action == "restore":
-        dump_file = get_latest_dump_file(table_name)
-        if dump_file:
-            restore_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{dump_file}"
-            subprocess.run(restore_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
-            print(f"Restored from: {dump_file}")
-        else:
-            print(f"No dump file found for {table_name}")
-
+print("Database operations completed.")
 EOPYTHON
 
                         logout
