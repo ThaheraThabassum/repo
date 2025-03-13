@@ -39,14 +39,13 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
-
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
-                        python3 <<EOPYTHON
+                        python3 - <<EOPYTHON
 import pandas as pd
 import os
 import datetime
@@ -54,8 +53,8 @@ import datetime
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "AlgoTeam123"
+MYSQL_USER = "${MYSQL_USER}"
+MYSQL_PASSWORD = "${MYSQL_PASSWORD}"
 
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp here.
 
@@ -66,7 +65,7 @@ for index, row in df.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     dump_file = f"{table_name}_{timestamp}.sql"
-
+    
     dump_command = None
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
@@ -86,9 +85,7 @@ for index, row in df.iterrows():
 
 print("Scripts generated successfully in /home/thahera/")
 print(f"Timestamp used: {timestamp}") # Print the timestamp
-
 EOPYTHON
-
                         EOF
                     """
                 }
@@ -103,7 +100,9 @@ EOPYTHON
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<EOF
+                        echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql
+                        EOF
                     """
                 }
             }
@@ -114,14 +113,13 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Processing databases on ${DEST_HOST} based on db_config.xlsx..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
-
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<EOF
                         echo "Successfully logged into ${DEST_HOST}"
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
-                        python3 <<EOPYTHON
+                        python3 - <<EOPYTHON
 import pandas as pd
 import os
 import datetime
@@ -129,8 +127,8 @@ import datetime
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "AlgoTeam123"
+MYSQL_USER = "${MYSQL_USER}"
+MYSQL_PASSWORD = "${MYSQL_PASSWORD}"
 
 for index, row in df.iterrows():
     db_name = row["database"]
