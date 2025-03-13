@@ -28,7 +28,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
+                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -44,12 +44,13 @@ pipeline {
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
 
                         python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
+import numpy as np
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
@@ -63,11 +64,11 @@ for index, row in df.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
-    where_condition = str(row.get("where_condition", "")).strip()
+    where_condition = row.get("where_condition", "")
 
     dump_file = f"{table_name}_{timestamp}.sql"
-
     dump_command = None
+
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
@@ -75,7 +76,7 @@ for index, row in df.iterrows():
     elif option == "both":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
-    if dump_command and where_condition and where_condition.lower() != "nan":
+    if isinstance(where_condition, str) and where_condition.strip() and where_condition.lower() != "nan":
         where_condition = where_condition.replace('"', '\\"')
         dump_command += f' --where="{where_condition}"'
 
@@ -89,7 +90,7 @@ print(f"Timestamp used: {timestamp}") # Print the timestamp
 
 EOPYTHON
 
-                        logout
+                        exit
                         EOF
                     """
                 }
@@ -124,25 +125,31 @@ EOPYTHON
                             echo "Extracting database names from db_config.xlsx..."
                             python3 - <<EOPYTHON
 import pandas as pd
-df = pd.read_excel("/home/thahera/db_config.xlsx")
-databases = df["database"].unique()
+import os
+
+excel_file = "/home/thahera/db_config.xlsx"
+df = pd.read_excel(excel_file)
+
+databases = df["database"].dropna().unique()  # Drop NaN values to avoid issues
 
 with open("/home/thahera/db_list.txt", "w") as f:
     for db in databases:
-        f.write(db + "\\n")
+        f.write(str(db) + "\\n")
+
+print("Database list saved to /home/thahera/db_list.txt")
 EOPYTHON
 
                             echo "Reading extracted database names..."
                             while read db; do
                                 echo "Using database: \$db"
-                                mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e 'USE `"'"$db"'"`; SHOW TABLES;'
+                                mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "USE \\\`$db\\\`; SHOW TABLES;"
                             done < /home/thahera/db_list.txt
 
                         else
                             echo "Error: Unable to connect to MySQL"
                         fi
 
-                        logout
+                        exit
                         EOF
                     """
                 }
