@@ -69,11 +69,11 @@ for index, row in df.iterrows():
 
     dump_command = None
     if option == "data":
-        dump_command = f"mysqldump -h ${DEST_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
-        dump_command = f"mysqldump -h ${DEST_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
     elif option == "both":
-        dump_command = f"mysqldump -h ${DEST_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     if dump_command and where_condition and where_condition.lower() != "nan":
         where_condition = where_condition.replace('"', '\"')
@@ -95,67 +95,27 @@ EOPYTHON
             }
         }
 
-        stage('Backup, Delete Data, and Restore') {
+        stage('Transfer and Set Permissions') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Processing databases on ${DEST_HOST}..."
+                        echo "Transferring generated scripts to ${DEST_HOST}..."
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+
+                        echo "Setting permissions for transferred files..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                    """
+                }
+            }
+        }
+
+        stage('Connect to MySQL on Destination') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh """
+                        echo "Connecting to MySQL on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
-
-                        echo "Successfully logged into ${DEST_HOST}"
-                        cd /home/thahera/
-
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
-
-                        python3 <<EOPYTHON
-import pandas as pd
-import os
-import datetime
-
-excel_file = "${REMOTE_EXCEL_PATH}"
-df = pd.read_excel(excel_file)
-
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "AlgoTeam123"
-MYSQL_HOST = "${DEST_HOST}"
-
-# Extract timestamp from SQL files
-for filename in os.listdir("/home/thahera"):
-    if filename.endswith(".sql"):
-        parts = filename.split("_")
-        if len(parts) >= 5:
-            timestamp = "_".join(parts[-4:])[:-4]
-            break
-else:
-    print("Error: No SQL files found.")
-    exit(1)
-
-print(f"Timestamp used: {timestamp}")
-
-for index, row in df.iterrows():
-    db_name = row["database"]
-    table_name = row["table"]
-    where_condition = str(row.get("where_condition", "")).strip()
-
-    backup_table = f"{table_name}_{timestamp}"
-    backup_cmd = f"mysql -h {MYSQL_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE IF NOT EXISTS {backup_table} AS SELECT * FROM {table_name};'"
-    os.system(backup_cmd)
-    print(f"Backup created: {backup_table}")
-
-    if where_condition and where_condition.lower() != "nan":
-        delete_cmd = f"mysql -h {MYSQL_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
-        os.system(delete_cmd)
-        print(f"Deleted data from {table_name} where {where_condition}")
-
-    script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
-    source_cmd = f"mysql -h {MYSQL_HOST} -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
-    os.system(source_cmd)
-    print(f"Sourced script: {script_file}")
-
-print("Database operations completed.")
-EOPYTHON
-
-                        logout
+                        mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "SELECT 'Successfully logged into MySQL';"
                         EOF
                     """
                 }
