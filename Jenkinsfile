@@ -28,7 +28,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no <span class="math-inline">\{WORKSPACE\}/</span>{LOCAL_EXCEL_FILE} <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST}:${REMOTE_EXCEL_PATH}
+                        scp -o StrictHostKeyChecking=no "${WORKSPACE}/${LOCAL_EXCEL_FILE}" ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -39,22 +39,24 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '<span class="math-inline">\{SUDO\_PASSWORD\}' \| sudo \-S apt install python3\-pandas python3\-openpyxl \-y
-python3 <<EOPYTHON
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+
+                        python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
 import subprocess
-excel\_file \= "</span>{REMOTE_EXCEL_PATH}"
+
+excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
-MYSQL_USER = "<span class="math-inline">\{MYSQL\_USER\}"
-MYSQL\_PASSWORD \= "</span>{MYSQL_PASSWORD}"
+MYSQL_USER = "${MYSQL_USER}"
+MYSQL_PASSWORD = "${MYSQL_PASSWORD}"
 
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
@@ -80,7 +82,7 @@ for index, row in df.iterrows():
 
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
-        subprocess.run(dump_command, shell=True, check=True) # use subprocess to avoid password in logs.
+        subprocess.run(dump_command, shell=True, check=True)
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
@@ -100,10 +102,10 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Transferring generated scripts to ${DEST_HOST}..."
-                        scp -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST}:/home/thahera/*.sql <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST}:/home/thahera/
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -114,20 +116,22 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Performing MySQL operations on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
-                        echo '<span class="math-inline">\{SUDO\_PASSWORD\}' \| sudo \-S apt install python3\-pandas python3\-openpyxl \-y
-cd /home/thahera/
-python3 <<EOPYTHON
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        cd /home/thahera/
+
+                        python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
 import subprocess
-excel\_file \= "</span>{REMOTE_EXCEL_PATH}"
+
+excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
-MYSQL_USER = "<span class="math-inline">\{MYSQL\_USER\}"
-MYSQL\_PASSWORD \= "</span>{MYSQL_PASSWORD}"
+MYSQL_USER = "${MYSQL_USER}"
+MYSQL_PASSWORD = "${MYSQL_PASSWORD}"
 
 def get_latest_dump_file(table_name):
     files = [f for f in os.listdir("/home/thahera/") if f.startswith(table_name) and f.endswith(".sql")]
@@ -177,3 +181,5 @@ EOPYTHON
                 }
             }
         }
+    }
+}
