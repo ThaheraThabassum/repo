@@ -57,11 +57,7 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-# Extract databases to be used later for MySQL queries
-databases = set(df["database"].dropna().unique())
-
-# Generate timestamp
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp.
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -89,12 +85,7 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}")
-
-# Save databases to a text file for use in the next stage
-with open("/home/thahera/databases.txt", "w") as f:
-    for db in databases:
-        f.write(db + "\n")
+print(f"Timestamp used: {timestamp}") # Print the timestamp
 
 EOPYTHON
 
@@ -112,11 +103,8 @@ EOPYTHON
                         echo "Transferring generated scripts to ${DEST_HOST}..."
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
-                        echo "Transferring database list..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/databases.txt ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
-
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql /home/thahera/databases.txt'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -132,12 +120,24 @@ EOPYTHON
                         echo "Testing MySQL connection..."
                         if mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "SELECT 1;"; then
                             echo "Connection successful"
+                            
+                            echo "Extracting database names from db_config.xlsx..."
+                            python3 - <<EOPYTHON
+import pandas as pd
+df = pd.read_excel("/home/thahera/db_config.xlsx")
+databases = df["database"].unique()
 
-                            echo "Reading databases from file..."
-                            while read -r db; do
-                                echo "Using database: $db"
-                                mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "USE \`$db\`; SHOW TABLES;"
-                            done < /home/thahera/databases.txt
+with open("/home/thahera/db_list.txt", "w") as f:
+    for db in databases:
+        f.write(db + "\\n")
+EOPYTHON
+
+                            echo "Reading extracted database names..."
+                            while read db; do
+                                echo "Using database: \$db"
+                                mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "USE \\\`$db\\\`; SHOW TABLES;"
+                            done < /home/thahera/db_list.txt
+
                         else
                             echo "Error: Unable to connect to MySQL"
                         fi
