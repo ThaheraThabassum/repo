@@ -82,7 +82,7 @@ for index, row in df.iterrows():
 
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
-        subprocess.run(dump_command, shell=True, check=True)
+        subprocess.run(dump_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
@@ -147,7 +147,7 @@ for index, row in df.iterrows():
     if action == "backup":
         backup_file = f"{table_name}_backup_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.sql"
         backup_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name} > /home/thahera/{backup_file}"
-        subprocess.run(backup_command, shell=True, check=True)
+        subprocess.run(backup_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
         print(f"Backup created: {backup_file}")
 
         backups = [f for f in os.listdir("/home/thahera/") if f.startswith(f"{table_name}_backup_") and f.endswith(".sql")]
@@ -161,14 +161,14 @@ for index, row in df.iterrows():
         if where_condition and where_condition.lower() != "nan":
             where_condition = where_condition.replace('"', '\\"')
             delete_command += f" -e 'DELETE FROM {db_name}.{table_name} WHERE {where_condition}'"
-        subprocess.run(delete_command, shell=True, check=True)
+        subprocess.run(delete_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
         print(f"Content deleted from {table_name}")
 
     if action == "restore":
         dump_file = get_latest_dump_file(table_name)
         if dump_file:
             restore_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{dump_file}"
-            subprocess.run(restore_command, shell=True, check=True)
+            subprocess.run(restore_command, shell=True, check=True, env=dict(os.environ, MYSQL_PWD=MYSQL_PASSWORD))
             print(f"Restored from: {dump_file}")
         else:
             print(f"No dump file found for {table_name}")
