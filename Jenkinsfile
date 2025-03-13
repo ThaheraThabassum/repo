@@ -57,7 +57,7 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp.
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -76,7 +76,7 @@ for index, row in df.iterrows():
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     if dump_command and where_condition and where_condition.lower() != "nan":
-        where_condition = where_condition.replace('"', '\"')
+        where_condition = where_condition.replace('"', '\\"')
         dump_command += f' --where="{where_condition}"'
 
     if dump_command:
@@ -85,7 +85,8 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}")
+print(f"Timestamp used: {timestamp}") # Print timestamp
+
 EOPYTHON
 
                         logout
@@ -109,13 +110,100 @@ EOPYTHON
             }
         }
 
-        stage('Connect to MySQL on Destination') {
+        stage('Backup, Delete Data, and Restore') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Connecting to MySQL on ${DEST_HOST}..."
+                        echo "Processing databases on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
-                        mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "SELECT 'Successfully logged into MySQL';"
+
+                        echo "Successfully logged into ${DEST_HOST}"
+                        cd /home/thahera/
+
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl python3-mysql.connector -y
+
+                        python3 <<EOPYTHON
+import pandas as pd
+import os
+import datetime
+import mysql.connector
+
+excel_file = "/home/thahera/db_config.xlsx"
+df = pd.read_excel(excel_file)
+
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "AlgoTeam123"
+
+# Establish MySQL connection
+try:
+    conn = mysql.connector.connect(
+        host="localhost",
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD
+    )
+    if conn.is_connected():
+        print("Connection successful")
+
+        cursor = conn.cursor()
+        cursor.execute("SHOW DATABASES;")
+        databases = cursor.fetchall()
+        print("Available Databases:")
+        for db in databases:
+            print(db[0])
+
+        cursor.close()
+        conn.close()
+except Exception as e:
+    print(f"Error: {e}")
+    exit(1)
+
+timestamp = None  # Initialize timestamp
+
+for filename in os.listdir("/home/thahera"):
+    if filename.endswith(".sql"):
+        parts = filename.split("_")
+        if len(parts) >= 5: # Ensure filename structure is valid
+            timestamp = "_".join(parts[-4:])[:-4]  # Extract timestamp
+            break  # Get timestamp from first SQL file
+
+if timestamp is None:
+    print("Error: No SQL files found.")
+else:
+    print(f"Timestamp used: {timestamp}")
+
+    for index, row in df.iterrows():
+        db_name = row["database"]
+        table_name = row["table"]
+        where_condition = str(row.get("where_condition", "")).strip()
+
+        backup_table = f"{table_name}_{timestamp}"
+        
+        verify_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; SHOW TABLES LIKE \"{backup_table}\";'"
+        if os.system(verify_cmd) != 0:
+            backup_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; CREATE TABLE {backup_table} AS SELECT * FROM {table_name};'"
+            os.system(backup_cmd)
+            print(f"Backup created successfully: {backup_table}")
+        else:
+            print(f"Table {backup_table} already exists. No backup taken.")
+
+        if where_condition and where_condition.lower() != "nan":
+            delete_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'USE {db_name}; DELETE FROM {table_name} WHERE {where_condition};'"
+            os.system(delete_cmd)
+            print(f"Deleted data from {table_name} where {where_condition}")
+
+        script_file = f"/home/thahera/{table_name}_{timestamp}.sql"
+        source_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < {script_file}"
+        os.system(source_cmd)
+        print(f"Sourced script: {script_file}")
+
+        cleanup_cmd = f"ls -t /home/thahera/{table_name}_*.sql | tail -n +4 | xargs rm -f"
+        os.system(cleanup_cmd)
+        print("Cleaned up older backups.")
+
+    print("Database operations completed.")
+EOPYTHON
+
+                        logout
                         EOF
                     """
                 }
