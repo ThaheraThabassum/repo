@@ -42,6 +42,11 @@ pipeline {
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
 
+                        echo "Successfully logged in!"
+                        cd /home/thahera/
+
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+
                         python3 <<EOPYTHON
 import pandas as pd
 import os
@@ -49,8 +54,10 @@ import datetime
 
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
+
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
+
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 script_list = []
 
@@ -61,6 +68,7 @@ for index, row in df.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     dump_file = f"{table_name}_{timestamp}.sql"
+
     dump_command = None
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
@@ -69,25 +77,50 @@ for index, row in df.iterrows():
     elif option == "both":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
-    if dump_command and where_condition.lower() != "nan":
+    if dump_command and where_condition and where_condition.lower() != "nan":
         where_condition = where_condition.replace('"', '\\"')
         dump_command += f' --where="{where_condition}"'
 
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
         os.system(dump_command)
+        print(f"✅ Dump generated: {dump_file}")
         script_list.append(dump_file)
 
+# Save transferred scripts list
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\n".join(script_list))
+    f.write("\\n".join(script_list))
+
+print("✅ Scripts generated successfully in /home/thahera/")
+print(f"🕒 Timestamp used: {timestamp}")
+
 EOPYTHON
+
+                        logout
                         EOF
                     """
                 }
             }
         }
 
-        stage('Backup, Delete & Load Data') {
+        stage('Transfer and Store Script Names') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh """
+                        echo "Transferring generated scripts to ${DEST_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
+                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+
+                        echo "Setting permissions for transferred files..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                    """
+                }
+            }
+        }
+
+        stage('Backup, Drop, Delete & Load Data') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
@@ -100,6 +133,7 @@ import os
 import datetime
 
 databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
+
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
@@ -118,14 +152,24 @@ for index, row in databases.iterrows():
     result = os.popen(check_command).read().strip()
 
     if result == "1":
-        backup_table = f"{table_name}_{timestamp}"
-        os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} LIKE {db_name}.{table_name}; INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};"')
-        print(f"✅ Backup created: {backup_table}")
-        
+        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
+        backup_table = f"{table_name}_backup_{timestamp}"
+
+        backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"'
+        backup_status = os.system(backup_command)
+
+        if backup_status == 0:
+            print(f"✅ Backup created: {backup_table}")
+        else:
+            print(f"❌ Backup failed for table {table_name} in {db_name}")
+
         if option == "structure":
             os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{table_name};"')
-        elif where_condition.lower() != "nan":
+            print(f"⚠️ Table '{table_name}' dropped.")
+
+        elif where_condition and where_condition.lower() != "nan":
             os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"')
+            print(f"⚠️ Deleted data from {table_name} where {where_condition}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
@@ -134,8 +178,11 @@ for index, row in databases.iterrows():
         script_files.remove(script_file)
 
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\n".join(script_files))
+    f.write("\\n".join(script_files))
+
 EOPYTHON
+
+                        logout
                         EOF
                     """
                 }
