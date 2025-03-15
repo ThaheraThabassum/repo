@@ -178,7 +178,7 @@ for index, row in databases.iterrows():
         source_query = f"SOURCE {sql_file};"
         os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \"{source_query}\"")
         print(f"Data sourced from {sql_file}")
-   
+    
     else:
         print(f"❌ SQL file not found for {table_name}, skipping sourcing.")
 
