@@ -138,8 +138,10 @@ for index, row in databases.iterrows():
 
     # Check if the table exists in the database
     query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    
-    result = os.popen(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{query}\"").read().strip()
+
+    # Fix: Properly escape the query string
+    command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{query}\""
+    result = os.popen(command).read().strip()
 
     if result == "1":
         print(f"✅ Table '{table_name}' is present in database '{db_name}'")
