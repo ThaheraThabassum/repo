@@ -21,6 +21,8 @@ pipeline {
                     echo "Checking out main branch..."
                     // Checkout the main branch explicitly
                     sh 'git checkout main'
+                    // Pull the latest changes from the remote repository
+                    sh 'git pull origin main'
                 }
             }
         }
@@ -29,6 +31,8 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
+                        echo "Listing workspace to ensure the file exists..."
+                        ls -l ${WORKSPACE}/${LOCAL_EXCEL_FILE}
                         echo "Uploading Excel file to remote server..."
                         scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
                     """
@@ -126,6 +130,8 @@ EOPYTHON
 
                         echo "Setting permissions for transferred files..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        # Verify the files on the remote server
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'ls -l /home/thahera/*.sql'
                     """
                 }
             }
@@ -137,6 +143,9 @@ EOPYTHON
                     sh """
                         echo "Processing tables for backup, deletion, and data loading on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
+
+                        echo "Listing transferred scripts file:"
+                        cat ${TRANSFERRED_SCRIPTS}
 
                         python3 <<EOPYTHON
 import pandas as pd
