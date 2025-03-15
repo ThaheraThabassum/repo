@@ -54,11 +54,10 @@ import datetime
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
-databases = df["database"].unique()
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp here.
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -67,8 +66,8 @@ for index, row in df.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     dump_file = f"{table_name}_{timestamp}.sql"
-    dump_command = None
 
+    dump_command = None
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
@@ -86,7 +85,8 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}")
+print(f"Timestamp used: {timestamp}") # Print the timestamp
+
 EOPYTHON
 
                         logout
@@ -131,9 +131,10 @@ MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
 for db in databases:
-    print(f"\nTables in database: {db}")
+    print(f"\\nTables in database: {db}")  # Fixed unterminated string error
     os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'SHOW TABLES FROM {db};'")
 EOPYTHON
+
                         else
                             echo "Error: Unable to connect to MySQL"
                         fi
