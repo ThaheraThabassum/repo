@@ -57,7 +57,7 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp here.
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -85,7 +85,7 @@ for index, row in df.iterrows():
         print(f"Dump generated: {dump_file}")
 
 print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}") # Print the timestamp
+print(f"Timestamp used: {timestamp}")
 
 EOPYTHON
 
@@ -110,7 +110,7 @@ EOPYTHON
             }
         }
 
-        stage('Verify Database Connection and List Tables') {
+        stage('Verify Database Connection and Validate Tables') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
@@ -120,19 +120,31 @@ EOPYTHON
                         echo "Testing MySQL connection..."
                         if mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "SELECT 1;"; then
                             echo "Connection successful"
-                            echo "Listing tables for selected databases..."
+                            echo "Validating table existence in databases..."
 
                             python3 <<EOPYTHON
 import pandas as pd
 import os
 
-databases = pd.read_excel("${REMOTE_EXCEL_PATH}")["database"].unique()
+# Read the Excel file
+databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
+
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-for db in databases:
-    print(f"\\nTables in database: {db}")  # Fixed unterminated string error
-    os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'SHOW TABLES FROM {db};'")
+for index, row in databases.iterrows():
+    db_name = row["database"]
+    table_name = row["table"]
+
+    # Check if the table exists in the database
+    query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
+    result = os.popen(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{query}\"").read().strip()
+
+    if result == "1":
+        print(f"✅ Table '{table_name}' is present in database '{db_name}'")
+    else:
+        print(f"❌ Table '{table_name}' is NOT present in database '{db_name}'")
+
 EOPYTHON
 
                         else
