@@ -15,11 +15,12 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout Main Branch') {
             steps {
                 script {
-                    echo "Checking out code from Git repository..."
-                    checkout scm
+                    echo "Checking out main branch..."
+                    // Checkout the main branch explicitly
+                    sh 'git checkout main'
                 }
             }
         }
