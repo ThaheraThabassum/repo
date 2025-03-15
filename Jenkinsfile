@@ -40,12 +40,13 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo '${SUDO_PASSWORD}' | sudo -S apt update -y
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -122,7 +123,7 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Processing tables for backup, deletion, and data loading on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
 
                         python3 <<EOPYTHON
 import pandas as pd
