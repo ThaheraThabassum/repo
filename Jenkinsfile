@@ -40,13 +40,12 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt update -y
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -97,6 +96,7 @@ print(f"🕒 Timestamp used: {timestamp}")
 
 EOPYTHON
 
+                        logout
                         EOF
                     """
                 }
@@ -108,7 +108,9 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Transferring generated scripts to ${DEST_HOST}..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${WORKSPACE}/transferred_scripts.txt
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
+                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
@@ -123,7 +125,7 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Processing tables for backup, deletion, and data loading on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -146,29 +148,21 @@ for index, row in databases.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'"
+    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}' | awk '{{print $1}}'"
     result = os.popen(check_command).read().strip()
 
-    print(f"Checking existence of table: {table_name} in database: {db_name}")
-    print(f"Check query: {check_query}")
-    print(f"Result from MySQL: '{result}'")
-
     if result == "1":
-        print(f"✅ Table '{table_name}' exists, proceeding with backup...")
-        
         backup_table = f"{table_name}_backup_{timestamp}"
-        backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"'
-        
-        print(f"Running backup command: {backup_command}")
+        backup_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};'"
         os.system(backup_command)
         print(f"✅ Backup created: {backup_table}")
 
         if option == "structure":
-            os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{table_name};"')
+            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'DROP TABLE {db_name}.{table_name};'")
             print(f"⚠️ Table '{table_name}' dropped.")
 
         elif where_condition and where_condition.lower() != "nan":
-            os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"')
+            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'DELETE FROM {db_name}.{table_name} WHERE {where_condition};'")
             print(f"⚠️ Deleted data from {table_name} where {where_condition}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
@@ -182,6 +176,7 @@ with open("${TRANSFERRED_SCRIPTS}", "w") as f:
 
 EOPYTHON
 
+                        logout
                         EOF
                     """
                 }
