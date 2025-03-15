@@ -28,6 +28,7 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
+                        echo "Uploading Excel file to remote server..."
                         scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
@@ -38,53 +39,82 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
+                        echo "Connecting to ${REMOTE_HOST} to generate scripts..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+
+                        echo "Successfully logged in!"
+                        cd /home/thahera/
+
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
                         python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
 
-df = pd.read_excel("${REMOTE_EXCEL_PATH}")
+excel_file = "${REMOTE_EXCEL_PATH}"
+df = pd.read_excel(excel_file)
+
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
+
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 script_list = []
 
-for _, row in df.iterrows():
-    db_name, table_name, option = row['database'], row['table'], str(row['option']).strip().lower()
+for index, row in df.iterrows():
+    db_name = row["database"]
+    table_name = row["table"]
+    option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
+
     dump_file = f"{table_name}_{timestamp}.sql"
-    
-    dump_cmd = None
+
+    dump_command = None
     if option == "data":
-        dump_cmd = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
-        dump_cmd = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
     elif option == "both":
-        dump_cmd = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
-    
-    if dump_cmd:
-        if where_condition.lower() != "nan":
-            dump_cmd += f' --where="{where_condition}"'
-        dump_cmd += f" > /home/thahera/{dump_file}"
-        os.system(dump_cmd)
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
+
+    if dump_command and where_condition and where_condition.lower() != "nan":
+        where_condition = where_condition.replace('"', '\\"')
+        dump_command += f' --where="{where_condition}"'
+
+    if dump_command:
+        dump_command += f" > /home/thahera/{dump_file}"
+        os.system(dump_command)
+        print(f"✅ Dump generated: {dump_file}")
         script_list.append(dump_file)
 
+# Save transferred scripts list
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\n".join(script_list))
+    f.write("\\n".join(script_list))
+
+print("✅ Scripts generated successfully in /home/thahera/")
+print(f"🕒 Timestamp used: {timestamp}")
+
 EOPYTHON
+
+                        logout
                         EOF
                     """
                 }
             }
         }
 
-        stage('Transfer Scripts') {
+        stage('Transfer and Store Script Names') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
+                        echo "Transferring generated scripts to ${DEST_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
+                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+
+                        echo "Setting permissions for transferred files..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -94,14 +124,17 @@ EOPYTHON
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
+                        echo "Processing tables for backup, deletion, and data loading on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
                         python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
+import subprocess
 
-df = pd.read_excel("${REMOTE_EXCEL_PATH}")
+databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
+
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
@@ -109,34 +142,75 @@ timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 with open("${TRANSFERRED_SCRIPTS}", "r") as f:
     script_files = [line.strip() for line in f.readlines()]
 
-for _, row in df.iterrows():
-    db_name, table_name, option = row['database'], row['table'], str(row['option']).strip().lower()
+for index, row in databases.iterrows():
+    db_name = row["database"]
+    table_name = row["table"]
+    option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
-    check_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="{db_name}" AND table_name="{table_name}";'"
-    table_exists = os.popen(check_cmd).read().strip()
+    check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
+    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{check_query}\""
+    
+    try:
+        result = subprocess.check_output(check_command, shell=True).decode().strip()
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error checking table existence: {e}")
+        continue
 
-    if table_exists == "1":
+    if result == "1":
+        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_backup_{timestamp}"
-        os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"')
+
+        create_backup_structure = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"CREATE TABLE IF NOT EXISTS {db_name}.{backup_table} LIKE {db_name}.{table_name};\""
+        backup_data_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};\""
         
-        if option == "structure":
-            os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{table_name};"')
-        elif where_condition and where_condition.lower() != "nan":
-            os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"')
+        try:
+            subprocess.check_call(create_backup_structure, shell=True)
+            subprocess.check_call(backup_data_command, shell=True)
+            print(f"✅ Backup created: {backup_table}")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error creating backup table: {e}")
+            continue
+
+        if where_condition and where_condition.lower() != "nan":
+            delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"'
+        else:
+            delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name};"'
+
+        try:
+            subprocess.check_call(delete_command, shell=True)
+            print(f"🚨 Deleted data from {db_name}.{table_name} with condition: {where_condition if where_condition else 'FULL DELETE'}")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error deleting data: {e}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}")
-        script_files.remove(script_file)
+        try:
+            subprocess.check_call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
+            print(f"✅ Sourced script: {script_file}")
+            script_files.remove(script_file)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error sourcing script: {e}")
 
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\n".join(script_files))
+    f.write("\\n".join(script_files) + "\\n")
+
 EOPYTHON
+
+                        logout
                         EOF
                     """
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline execution completed successfully!"
+        }
+        failure {
+            echo "❌ Pipeline execution failed!"
         }
     }
 }
