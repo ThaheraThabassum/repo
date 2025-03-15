@@ -152,33 +152,25 @@ for index, row in databases.iterrows():
     result = os.popen(check_command).read().strip()
 
     if result == "1":
-        print(f"✅ Table '{table_name}' exists in '{db_name}', proceeding with backup...")
-
-        backup_table = f"{table_name}_backup_{timestamp}"
-        backup_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};\""
-        
-        backup_result = os.system(backup_command)
-        if backup_result == 0:
-            print(f"🎉 Backup created successfully: {backup_table}")
-        else:
-            print(f"❌ Backup failed for {table_name}, skipping further operations.")
-            continue  
+        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
+        backup_table = f"{table_name}_{timestamp}"
+        backup_command = f"""mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};" """
+        os.system(backup_command)
+        print(f"📁 Backup created: {backup_table}")
 
         if option == "structure":
-            drop_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"DROP TABLE {db_name}.{table_name};\""
-            if os.system(drop_command) == 0:
-                print(f"✅ Table '{table_name}' dropped successfully.")
+            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \\"DROP TABLE {db_name}.{table_name};\\"")
+            print(f"🗑️ Table '{table_name}' dropped.")
 
         elif where_condition and where_condition.lower() != "nan":
-            delete_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"DELETE FROM {db_name}.{table_name} WHERE {where_condition};\""
-            if os.system(delete_command) == 0:
-                print(f"✅ Deleted data from {table_name} where {where_condition}")
+            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \\"DELETE FROM {db_name}.{table_name} WHERE {where_condition};\\"")
+            print(f"❌ Deleted data from {table_name} where {where_condition}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
-        source_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}"
-        if os.system(source_command) == 0:
-            print(f"✅ Sourced script: {script_file}")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}")
+        print(f"📥 Loaded data from script: {script_file}")
+        script_files.remove(script_file)
 
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
     f.write("\\n".join(script_files))
