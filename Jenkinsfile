@@ -68,8 +68,8 @@ for index, row in df.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     dump_file = f"{table_name}_{timestamp}.sql"
-    dump_command = None
 
+    dump_command = None
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
     elif option == "structure":
@@ -78,7 +78,7 @@ for index, row in df.iterrows():
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     if dump_command and where_condition and where_condition.lower() != "nan":
-        where_condition = where_condition.replace('"', '\\"')
+        where_condition = where_condition.replace('"', '\"')
         dump_command += f' --where="{where_condition}"'
 
     if dump_command:
@@ -92,11 +92,27 @@ with open("${TRANSFERRED_SCRIPTS}", "w") as f:
 
 print("✅ Scripts generated successfully in /home/thahera/")
 print(f"🕒 Timestamp used: {timestamp}")
-
 EOPYTHON
 
                         logout
                         EOF
+                    """
+                }
+            }
+        }
+
+        stage('Transfer and Store Script Names') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh """
+                        echo "Transferring generated scripts to ${DEST_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
+                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+
+                        echo "Setting permissions for transferred files..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -115,6 +131,7 @@ import os
 import datetime
 
 databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
+
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
@@ -129,7 +146,7 @@ for index, row in databases.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{check_query}\""
+    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'"
     result = os.popen(check_command).read().strip()
 
     if result == "1":
@@ -145,10 +162,6 @@ for index, row in databases.iterrows():
         os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}")
         print(f"✅ Sourced script: {script_file}")
         script_files.remove(script_file)
-
-with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\n".join(script_files))
-
 EOPYTHON
 
                         logout
