@@ -9,8 +9,8 @@ pipeline {
         LOCAL_EXCEL_FILE = "db_config.xlsx"
         REMOTE_EXCEL_PATH = "/home/thahera/db_config.xlsx"
         MYSQL_USER = "root"
-        MYSQL_PASSWORD = "AlgoTeam123" //Consider using Jenkins credentials.
-        SUDO_PASSWORD = "1234" //Consider using Jenkins credentials.
+        MYSQL_PASSWORD = "AlgoTeam123"
+        SUDO_PASSWORD = "1234"
     }
 
     stages {
@@ -110,49 +110,61 @@ EOPYTHON
             }
         }
 
-        stage('Verify Database Connection and Validate Tables') {
+        stage('Backup and Load Data') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Verifying MySQL connection on ${DEST_HOST}..."
+                        echo "Performing backup and loading data on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
-                        echo "Testing MySQL connection..."
-                        if mysql -u ${MYSQL_USER} -p'${MYSQL_PASSWORD}' -e "SELECT 1;"; then
-                            echo "Connection successful"
-                            echo "Validating table existence in databases..."
+                        echo "Processing tables for backup and data loading..."
 
-                            python3 <<EOPYTHON
+                        python3 <<EOPYTHON
 import pandas as pd
 import os
+import datetime
 
 # Read the Excel file
 databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
 
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
 for index, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
 
     # Check if the table exists in the database
-    query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-
-    # Fix: Properly escape the query string
-    command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \\"{query}\\""
-    result = os.popen(command).read().strip()
+    check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
+    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{check_query}\""
+    result = os.popen(check_command).read().strip()
 
     if result == "1":
-        print(f"✅ Table '{table_name}' is present in database '{db_name}'")
+        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
+        backup_table = f"{table_name}_{timestamp}"
+        backup_query = f"CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{backup_query}\"")
+        print(f"Backup created: {backup_table}")
     else:
-        print(f"❌ Table '{table_name}' is NOT present in database '{db_name}'")
+        print(f"❌ Table '{table_name}' does not exist, skipping backup.")
+
+    # Delete existing data if instructed in the Excel
+    if result == "1":
+        delete_query = f"DELETE FROM {db_name}.{table_name};"
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{delete_query}\"")
+        print(f"Data deleted from {db_name}.{table_name}")
+
+    # Source the SQL file for the table
+    sql_file = f"/home/thahera/{table_name}_{timestamp}.sql"
+    if os.path.exists(sql_file):
+        source_query = f"SOURCE {sql_file};"
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \"{source_query}\"")
+        print(f"Data sourced from {sql_file}")
+    else:
+        print(f"❌ SQL file not found for {table_name}, skipping sourcing.")
 
 EOPYTHON
-
-                        else
-                            echo "Error: Unable to connect to MySQL"
-                        fi
 
                         logout
                         EOF
