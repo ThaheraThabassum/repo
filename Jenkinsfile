@@ -28,7 +28,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
+                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -45,7 +45,6 @@ pipeline {
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
-
                         python3 <<EOPYTHON
 import pandas as pd
 import os
@@ -58,6 +57,8 @@ MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+
+generated_files = []
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -83,9 +84,11 @@ for index, row in df.iterrows():
         dump_command += f" > /home/thahera/{dump_file}"
         os.system(dump_command)
         print(f"Dump generated: {dump_file}")
+        generated_files.append(dump_file)
 
 print("Scripts generated successfully in /home/thahera/")
 print(f"Timestamp used: {timestamp}")
+print(f"Generated Files: {generated_files}")
 
 EOPYTHON
 
@@ -124,18 +127,22 @@ import pandas as pd
 import os
 import datetime
 
-# Read the Excel file
 databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
 
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
+# List of transferred SQL files
+transferred_files = os.listdir("/home/thahera/")
+transferred_files = [f for f in transferred_files if f.endswith(".sql")]
+
 for index, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
+    option = str(row["option"]).strip().lower()
+    where_condition = str(row.get("where_condition", "")).strip()
 
-    # Check if the table exists in the database
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
     check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'"
     result = os.popen(check_command).read().strip()
@@ -144,29 +151,39 @@ for index, row in databases.iterrows():
         print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_{timestamp}"
         backup_query = f"CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \\"{backup_query}\\"")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{backup_query}\"")
         print(f"Backup created: {backup_table}")
     else:
         print(f"❌ Table '{table_name}' does not exist, skipping backup.")
 
-    # Delete existing data if instructed in the Excel
-    if result == "1":
-        delete_query = f"DELETE FROM {db_name}.{table_name};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \\"{delete_query}\\"")
-        print(f"Data deleted from {db_name}.{table_name}")
+    if result == "1" and where_condition and where_condition.lower() != "nan":
+        if option == "structure":
+            drop_query = f"DROP TABLE {db_name}.{table_name};"
+            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{drop_query}\"")
+            print(f"Table {db_name}.{table_name} dropped.")
+        else:
+            delete_query = f"DELETE FROM {db_name}.{table_name} WHERE {where_condition};"
+            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{delete_query}\"")
+            print(f"Data deleted from {db_name}.{table_name} where {where_condition}")
+    elif result == "1":
+        if option == "structure":
+            drop_query = f"DROP TABLE {db_name}.{table_name};"
+            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{drop_query}\"")
+            print(f"Table {db_name}.{table_name} dropped.")
 
-    # Source the SQL file for the table
-    sql_file = f"/home/thahera/{table_name}_{timestamp}.sql"
-    if os.path.exists(sql_file):
+    # Find the corresponding SQL file and source it
+    sql_file_name = next((file for file in transferred_files if file.startswith(f"{table_name}_{timestamp}")), None)
+
+    if sql_file_name:
+        sql_file = f"/home/thahera/{sql_file_name}"
         source_query = f"SOURCE {sql_file};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \\"{source_query}\\"")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \"{source_query}\"")
         print(f"Data sourced from {sql_file}")
     else:
         print(f"❌ SQL file not found for {table_name}, skipping sourcing.")
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
