@@ -165,6 +165,7 @@ for index, row in databases.iterrows():
             print(f"⚠️ Table '{table_name}' dropped.")
 
         elif where_condition and where_condition.lower() != "nan":
+            where_condition = where_condition.replace('"', '\\"')
             os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"')
             print(f"⚠️ Deleted data from {table_name} where {where_condition}")
 
