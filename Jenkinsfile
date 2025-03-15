@@ -72,14 +72,13 @@ for index, row in df.iterrows():
     dump_command = None
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
+        if where_condition and where_condition.lower() != "nan":
+            where_condition = where_condition.replace('"', '\\"')
+            dump_command += f' --where="{where_condition}"'
     elif option == "structure":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
     elif option == "both":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
-
-    if dump_command and where_condition and where_condition.lower() != "nan":
-        where_condition = where_condition.replace('"', '\\"')
-        dump_command += f' --where="{where_condition}"'
 
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
