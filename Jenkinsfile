@@ -65,16 +65,18 @@ script_list = []
 for index, row in df.iterrows():
     db_name = str(row["database"]).strip()
     table_name = str(row["table"]).strip()
-    option = str(row["option"]).strip().lower()
+    option = str(row["option"]).strip().lower()  # Ensure it's lowercase and trimmed
     where_condition = str(row.get("where_condition", "")).strip()
 
-    dump_file = f"/home/thahera/{table_name}_{timestamp}.sql"
+    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition}")  # Debug Print
+
+    dump_file = f"{table_name}_{timestamp}.sql"
     dump_command = None
 
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
         if where_condition and where_condition.lower() != "nan":
-            where_condition = where_condition.replace('"', '\\"')
+            where_condition = where_condition.replace('"', '\\"')  # Escape double quotes
             dump_command += f' --where="{where_condition}"'
 
     elif option == "structure":
@@ -84,8 +86,8 @@ for index, row in df.iterrows():
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     if dump_command:
-        dump_command += f" > {dump_file}"
-
+        dump_command += f" > /home/thahera/{dump_file}"
+        
         print(f"🟢 Running Command: {dump_command}")  # DEBUG PRINT
 
         try:
@@ -154,6 +156,7 @@ for index, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
+    where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
     check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
