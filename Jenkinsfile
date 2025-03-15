@@ -57,7 +57,7 @@ df = pd.read_excel(excel_file)
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S") # Generate timestamp
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
 for index, row in df.iterrows():
     db_name = row["database"]
@@ -138,6 +138,7 @@ for index, row in databases.iterrows():
 
     # Check if the table exists in the database
     query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
+    
     result = os.popen(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{query}\"").read().strip()
 
     if result == "1":
