@@ -28,7 +28,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no <span class="math-inline">\{WORKSPACE\}/</span>{LOCAL_EXCEL_FILE} <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST}:${REMOTE_EXCEL_PATH}
+                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -39,34 +39,31 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST} <<'EOF'
-
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '<span class="math-inline">\{SUDO\_PASSWORD\}' \| sudo \-S apt install python3\-pandas python3\-openpyxl \-y
-python3 <<EOPYTHON
+                        echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
+
+                        python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
-excel\_file \= "</span>{REMOTE_EXCEL_PATH}"
-df = pd.read_excel(excel_file)
 
+df = pd.read_excel("${REMOTE_EXCEL_PATH}")
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
-
 generated_files = []
 
-for index, row in df.iterrows():
+for _, row in df.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
     dump_file = f"{table_name}_{timestamp}.sql"
-
     dump_command = None
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
@@ -74,24 +71,18 @@ for index, row in df.iterrows():
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
     elif option == "both":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
-
+    
     if dump_command and where_condition and where_condition.lower() != "nan":
-        where_condition = where_condition.replace('"', '\\"')
-        dump_command += f' --where="{where_condition}"'
-
+        dump_command += f' --where="{where_condition.replace("\"", "\\\"")}"'
+    
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
         os.system(dump_command)
         print(f"Dump generated: {dump_file}")
         generated_files.append(dump_file)
 
-print("Scripts generated successfully in /home/thahera/")
-print(f"Timestamp used: {timestamp}")
 print(f"Generated Files: {generated_files}")
-
 EOPYTHON
-
-                        logout
                         EOF
                     """
                 }
@@ -103,10 +94,8 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Transferring generated scripts to ${DEST_HOST}..."
-                        scp -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST}:/home/thahera/*.sql <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST}:/home/thahera/
-
-                        echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -117,75 +106,42 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Performing backup and loading data on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST} <<'EOF'
-
-                        echo "Processing tables for backup and data loading..."
-
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<EOF
                         python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
 
 databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
-
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+transferred_files = [f for f in os.listdir("/home/thahera/") if f.endswith(".sql")]
 
-# List of transferred SQL files
-transferred_files = os.listdir("/home/thahera/")
-transferred_files = [f for f in transferred_files if f.endswith(".sql")]
-
-for index, row in databases.iterrows():
+for _, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'"
-    result = os.popen(check_command).read().strip()
+    result = os.popen(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'").read().strip()
 
     if result == "1":
-        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_{timestamp}"
-        backup_query = f"CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{backup_query.replace('\"', '\\\"')}\"")
-        print(f"Backup created: {backup_table}")
-    else:
-        print(f"❌ Table '{table_name}' does not exist, skipping backup.")
-
-    if result == "1" and where_condition and where_condition.lower() != "nan":
-        if option == "structure":
-            drop_query = f"DROP TABLE {db_name}.{table_name};"
-            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{drop_query}\"")
-            print(f"Table {db_name}.{table_name} dropped.")
-        else:
-            delete_query = f"DELETE FROM {db_name}.{table_name} WHERE {where_condition};"
-            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{delete_query}\"")
-            print(f"Data deleted from {db_name}.{table_name} where {where_condition}")
-    elif result == "1":
-        if option == "structure":
-            drop_query = f"DROP TABLE {db_name}.{table_name};"
-            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{drop_query}\"")
-            print(f"Table {db_name}.{table_name} dropped.")
-
-    # Find the corresponding SQL file and source it
-    sql_file_name = next((file for file in transferred_files if file.startswith(f"{table_name}_{timestamp}")), None)
-
-    if sql_file_name:
-        sql_file = f"/home/thahera/{sql_file_name}"
-        source_query = f"SOURCE {sql_file};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \"{source_query}\"")
-        print(f"Data sourced from {sql_file}")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};\"")
     
-    else:
-        print(f"❌ SQL file not found for {table_name}, skipping sourcing.")
-
+    if result == "1" and where_condition and where_condition.lower() != "nan":
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"DELETE FROM {db_name}.{table_name} WHERE {where_condition};\"")
+    
+    sql_file_name = next((file for file in transferred_files if file.startswith(f"{table_name}_{timestamp}")), None)
+    if sql_file_name:
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \"SOURCE /home/thahera/{sql_file_name};\"")
 EOPYTHON
-
-                EOF
-            """
+                        EOF
+                    """
+                }
+            }
         }
     }
 }
