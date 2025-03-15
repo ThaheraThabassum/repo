@@ -149,7 +149,7 @@ for index, row in databases.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{check_query}\""
+    check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
     
     try:
         result = subprocess.check_output(check_command, shell=True).decode().strip()
@@ -161,8 +161,8 @@ for index, row in databases.iterrows():
         print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_backup_{timestamp}"
 
-        create_backup_structure = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"CREATE TABLE IF NOT EXISTS {db_name}.{backup_table} LIKE {db_name}.{table_name};\""
-        backup_data_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};\""
+        create_backup_structure = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE IF NOT EXISTS {db_name}.{backup_table} LIKE {db_name}.{table_name};"'
+        backup_data_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};"'
         
         try:
             subprocess.check_call(create_backup_structure, shell=True)
@@ -172,28 +172,18 @@ for index, row in databases.iterrows():
             print(f"❌ Error creating backup table: {e}")
             continue
 
-        if where_condition and where_condition.lower() != "nan":
-            delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"'
-        else:
-            delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name};"'
+        delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"' if where_condition else f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name};"'
 
         try:
             subprocess.check_call(delete_command, shell=True)
-            print(f"🚨 Deleted data from {db_name}.{table_name} with condition: {where_condition if where_condition else 'FULL DELETE'}")
+            print(f"🚨 Deleted data from {db_name}.{table_name}")
         except subprocess.CalledProcessError as e:
             print(f"❌ Error deleting data: {e}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
-        try:
-            subprocess.check_call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
-            print(f"✅ Sourced script: {script_file}")
-            script_files.remove(script_file)
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error sourcing script: {e}")
-
-with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\\n".join(script_files) + "\\n")
+        subprocess.call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
+        print(f"✅ Loaded script: {script_file}")
 
 EOPYTHON
 
@@ -202,15 +192,6 @@ EOPYTHON
                     """
                 }
             }
-        }
-    }
-
-    post {
-        success {
-            echo "✅ Pipeline execution completed successfully!"
-        }
-        failure {
-            echo "❌ Pipeline execution failed!"
         }
     }
 }
