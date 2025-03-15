@@ -9,8 +9,8 @@ pipeline {
         LOCAL_EXCEL_FILE = "db_config.xlsx"
         REMOTE_EXCEL_PATH = "/home/thahera/db_config.xlsx"
         MYSQL_USER = "root"
-        MYSQL_PASSWORD = "AlgoTeam123"
-        SUDO_PASSWORD = "1234"
+        MYSQL_PASSWORD = "AlgoTeam123" //Consider using Jenkins credentials.
+        SUDO_PASSWORD = "1234" //Consider using Jenkins credentials.
     }
 
     stages {
@@ -140,7 +140,7 @@ for index, row in databases.iterrows():
     query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
 
     # Fix: Properly escape the query string
-    command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{query}\""
+    command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \\"{query}\\""
     result = os.popen(command).read().strip()
 
     if result == "1":
