@@ -40,14 +40,14 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
                         echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
 
-                        python3 << EOPYTHON
+                        python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
@@ -96,6 +96,7 @@ print(f"🕒 Timestamp used: {timestamp}")
 
 EOPYTHON
 
+                        logout
                         EOF
                     """
                 }
@@ -124,9 +125,9 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Processing tables for backup, deletion, and data loading on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
 
-                        python3 << EOPYTHON
+                        python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
@@ -136,10 +137,6 @@ databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
-
-# Ensure file exists before reading
-if not os.path.exists("${TRANSFERRED_SCRIPTS}"):
-    open("${TRANSFERRED_SCRIPTS}", "w").close()
 
 with open("${TRANSFERRED_SCRIPTS}", "r") as f:
     script_files = [line.strip() for line in f.readlines()]
@@ -182,6 +179,7 @@ with open("${TRANSFERRED_SCRIPTS}", "w") as f:
 
 EOPYTHON
 
+                        logout
                         EOF
                     """
                 }
