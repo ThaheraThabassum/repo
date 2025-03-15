@@ -137,14 +137,14 @@ for index, row in databases.iterrows():
 
     # Check if the table exists in the database
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"{check_query}\""
+    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'"
     result = os.popen(check_command).read().strip()
 
     if result == "1":
         print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_{timestamp}"
         backup_query = f"CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{backup_query}\"")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \\"{backup_query}\\"")
         print(f"Backup created: {backup_table}")
     else:
         print(f"❌ Table '{table_name}' does not exist, skipping backup.")
@@ -152,14 +152,14 @@ for index, row in databases.iterrows():
     # Delete existing data if instructed in the Excel
     if result == "1":
         delete_query = f"DELETE FROM {db_name}.{table_name};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{delete_query}\"")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \\"{delete_query}\\"")
         print(f"Data deleted from {db_name}.{table_name}")
 
     # Source the SQL file for the table
     sql_file = f"/home/thahera/{table_name}_{timestamp}.sql"
     if os.path.exists(sql_file):
         source_query = f"SOURCE {sql_file};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \"{source_query}\"")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \\"{source_query}\\"")
         print(f"Data sourced from {sql_file}")
     else:
         print(f"❌ SQL file not found for {table_name}, skipping sourcing.")
