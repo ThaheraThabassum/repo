@@ -68,7 +68,7 @@ for index, row in df.iterrows():
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
-    dump_file = f"{table_name}_{timestamp}.sql"
+    dump_file = f"/home/thahera/{table_name}_{timestamp}.sql"
     dump_command = None
 
     if option == "data":
@@ -76,16 +76,16 @@ for index, row in df.iterrows():
         if where_condition and where_condition.lower() != "nan":
             where_condition = where_condition.replace('"', '\\"')
             dump_command += f' --where="{where_condition}"'
-    
+
     elif option == "structure":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
-    
+
     elif option == "both":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
 
     if dump_command:
-        dump_command += f" > /home/thahera/{dump_file}"
-        
+        dump_command += f" > {dump_file}"
+
         print(f"🟢 Running Command: {dump_command}")  # DEBUG PRINT
 
         try:
@@ -154,7 +154,6 @@ for index, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
-    where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
     check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
