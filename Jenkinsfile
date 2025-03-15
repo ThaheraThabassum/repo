@@ -28,7 +28,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
+                        scp -o StrictHostKeyChecking=no <span class="math-inline">\{WORKSPACE\}/</span>{LOCAL_EXCEL_FILE} <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                     """
                 }
             }
@@ -39,18 +39,17 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Connecting to ${REMOTE_HOST} to generate scripts..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST} <<'EOF'
 
                         echo "Successfully logged in!"
                         cd /home/thahera/
 
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
-                        python3 <<EOPYTHON
+                        echo '<span class="math-inline">\{SUDO\_PASSWORD\}' \| sudo \-S apt install python3\-pandas python3\-openpyxl \-y
+python3 <<EOPYTHON
 import pandas as pd
 import os
 import datetime
-
-excel_file = "${REMOTE_EXCEL_PATH}"
+excel\_file \= "</span>{REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
 MYSQL_USER = "root"
@@ -104,10 +103,10 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Transferring generated scripts to ${DEST_HOST}..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+                        scp -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{REMOTE_HOST}:/home/thahera/*.sql <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -118,7 +117,7 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Performing backup and loading data on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<'EOF'
+                        ssh -o StrictHostKeyChecking=no <span class="math-inline">\{REMOTE\_USER\}@</span>{DEST_HOST} <<'EOF'
 
                         echo "Processing tables for backup and data loading..."
 
@@ -151,7 +150,7 @@ for index, row in databases.iterrows():
         print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_{timestamp}"
         backup_query = f"CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"
-        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{backup_query}\"")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e \"{backup_query.replace('\"', '\\\"')}\"")
         print(f"Backup created: {backup_table}")
     else:
         print(f"❌ Table '{table_name}' does not exist, skipping backup.")
@@ -179,15 +178,14 @@ for index, row in databases.iterrows():
         source_query = f"SOURCE {sql_file};"
         os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} -e \"{source_query}\"")
         print(f"Data sourced from {sql_file}")
+   
     else:
         print(f"❌ SQL file not found for {table_name}, skipping sourcing.")
 
 EOPYTHON
 
-                        EOF
-                    """
-                }
-            }
+                EOF
+            """
         }
     }
 }
