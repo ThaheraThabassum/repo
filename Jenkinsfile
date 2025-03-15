@@ -62,29 +62,29 @@ for index, row in databases.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f"mysql -u {MYSQL_USER} -p'${MYSQL_PASSWORD}' -N -e \"{check_query}\""
+    check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
     result = os.popen(check_command).read().strip()
 
     if result == "1":
         print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_backup_{timestamp}"
 
-        backup_command = f'mysql -u {MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"'
+        backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"'
         os.system(backup_command)
         print(f"✅ Backup created: {backup_table}")
 
         # DELETE COMMAND (Handles where_condition)
         if where_condition and where_condition.lower() != "nan":
-            delete_command = f'mysql -u {MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"'
+            delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"'
         else:
-            delete_command = f'mysql -u {MYSQL_USER} -p"${MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name};"'
+            delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name};"'
 
         os.system(delete_command)
         print(f"🚨 Deleted data from {db_name}.{table_name} with condition: {where_condition if where_condition else 'FULL DELETE'}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
-        os.system(f"mysql -u {MYSQL_USER} -p'${MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}")
+        os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}")
         print(f"✅ Sourced script: {script_file}")
         script_files.remove(script_file)
 
