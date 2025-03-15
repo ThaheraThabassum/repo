@@ -52,6 +52,7 @@ import pandas as pd
 import os
 import datetime
 
+# Excel file path
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
@@ -62,8 +63,8 @@ timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 script_list = []
 
 for index, row in df.iterrows():
-    db_name = row["database"]
-    table_name = row["table"]
+    db_name = str(row["database"]).strip()
+    table_name = str(row["table"]).strip()
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
@@ -73,7 +74,8 @@ for index, row in df.iterrows():
     if option == "data":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
         if where_condition and where_condition.lower() != "nan":
-            where_condition = where_condition.replace('"', '\\"')
+            print(f"✅ Applying WHERE condition for {table_name}: {where_condition}")
+            where_condition = where_condition.replace('"', '\\"')  # Escape double quotes
             dump_command += f' --where="{where_condition}"'
     elif option == "structure":
         dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
@@ -85,6 +87,8 @@ for index, row in df.iterrows():
         os.system(dump_command)
         print(f"✅ Dump generated: {dump_file}")
         script_list.append(dump_file)
+    else:
+        print(f"⚠️ No valid option found for {table_name}. Skipping.")
 
 # Save transferred scripts list
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
@@ -92,7 +96,6 @@ with open("${TRANSFERRED_SCRIPTS}", "w") as f:
 
 print("✅ Scripts generated successfully in /home/thahera/")
 print(f"🕒 Timestamp used: {timestamp}")
-
 EOPYTHON
 
                         logout
@@ -142,8 +145,8 @@ with open("${TRANSFERRED_SCRIPTS}", "r") as f:
     script_files = [line.strip() for line in f.readlines()]
 
 for index, row in databases.iterrows():
-    db_name = row["database"]
-    table_name = row["table"]
+    db_name = str(row["database"]).strip()
+    table_name = str(row["table"]).strip()
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
@@ -170,14 +173,6 @@ for index, row in databases.iterrows():
         except subprocess.CalledProcessError as e:
             print(f"❌ Error creating backup table: {e}")
             continue
-
-        delete_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"' if where_condition else f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name};"'
-
-        try:
-            subprocess.check_call(delete_command, shell=True)
-            print(f"🚨 Deleted data from {db_name}.{table_name}")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error deleting data: {e}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
