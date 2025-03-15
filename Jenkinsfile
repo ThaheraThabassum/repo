@@ -96,7 +96,6 @@ print(f"🕒 Timestamp used: {timestamp}")
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
@@ -108,9 +107,7 @@ EOPYTHON
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Transferring generated scripts to ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
-                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
-
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${WORKSPACE}/transferred_scripts.txt
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
@@ -151,13 +148,18 @@ for index, row in databases.iterrows():
     check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'"
     result = os.popen(check_command).read().strip()
 
+    print(f"Checking existence of table: {table_name} in database: {db_name}")
+    print(f"Check query: {check_query}")
+    print(f"Result from MySQL: '{result}'")
+
     if result == "1":
-        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
+        print(f"✅ Table '{table_name}' exists, proceeding with backup...")
+        
         backup_table = f"{table_name}_backup_{timestamp}"
-
         backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"'
+        
+        print(f"Running backup command: {backup_command}")
         os.system(backup_command)
-
         print(f"✅ Backup created: {backup_table}")
 
         if option == "structure":
@@ -179,7 +181,6 @@ with open("${TRANSFERRED_SCRIPTS}", "w") as f:
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
