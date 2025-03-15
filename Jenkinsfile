@@ -88,7 +88,7 @@ for index, row in df.iterrows():
         script_list.append(dump_file)
 
 # Save transferred scripts list
-with open("${TRANSFERRED_SCRIPTS}", "w") as f:
+with open("\\${TRANSFERRED_SCRIPTS}", "w") as f:
     f.write("\\n".join(script_list))
 
 print("✅ Scripts generated successfully in /home/thahera/")
@@ -96,7 +96,6 @@ print(f"🕒 Timestamp used: {timestamp}")
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
@@ -138,7 +137,7 @@ MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 
-with open("${TRANSFERRED_SCRIPTS}", "r") as f:
+with open("\\${TRANSFERRED_SCRIPTS}", "r") as f:
     script_files = [line.strip() for line in f.readlines()]
 
 for index, row in databases.iterrows():
@@ -148,21 +147,24 @@ for index, row in databases.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}' | awk '{{print $1}}'"
+    check_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e '{check_query}'"
     result = os.popen(check_command).read().strip()
 
     if result == "1":
+        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_backup_{timestamp}"
-        backup_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};'"
+
+        backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} AS SELECT * FROM {db_name}.{table_name};"'
         os.system(backup_command)
+
         print(f"✅ Backup created: {backup_table}")
 
         if option == "structure":
-            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'DROP TABLE {db_name}.{table_name};'")
+            os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{table_name};"')
             print(f"⚠️ Table '{table_name}' dropped.")
 
         elif where_condition and where_condition.lower() != "nan":
-            os.system(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -e 'DELETE FROM {db_name}.{table_name} WHERE {where_condition};'")
+            os.system(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DELETE FROM {db_name}.{table_name} WHERE {where_condition};"')
             print(f"⚠️ Deleted data from {table_name} where {where_condition}")
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
@@ -171,12 +173,11 @@ for index, row in databases.iterrows():
         print(f"✅ Sourced script: {script_file}")
         script_files.remove(script_file)
 
-with open("${TRANSFERRED_SCRIPTS}", "w") as f:
+with open("\\${TRANSFERRED_SCRIPTS}", "w") as f:
     f.write("\\n".join(script_files))
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
