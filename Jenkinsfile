@@ -159,7 +159,7 @@ for index, row in databases.iterrows():
 
     if result == "1":
         print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
-        backup_table = f"{table_name}_backup_{timestamp}"
+        backup_table = f"{table_name}_{timestamp}"
 
         create_backup_structure = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE IF NOT EXISTS {db_name}.{backup_table} LIKE {db_name}.{table_name};"'
         backup_data_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};"'
