@@ -48,12 +48,10 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ] && [ -e "$item" ]; then
                                 if [[ "$item" == *.* ]]; then
-                                    # File with extension
                                     filename="${item%.*}"
                                     extension="${item##*.}"
                                     BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
                                 else
-                                    # File without extension
                                     BACKUP_ITEM="${item}_${TIMESTAMP}"
                                 fi
 
@@ -108,12 +106,12 @@ pipeline {
                                 if [[ "$item" == *.* ]]; then
                                     filename="${item%.*}"
                                     extension="${item##*.}"
-                                    BACKUP_PATTERN="${filename}_*.${extension}"
+                                    BACKUP_PATTERN="${filename}_*"
                                 else
                                     BACKUP_PATTERN="${item}_*"
                                 fi
 
-                                BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
+                                BACKUP_ITEMS=$(ls -d ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
 
                                 echo "Found backups: $BACKUP_ITEMS"
                                 BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
@@ -122,8 +120,8 @@ pipeline {
                                     DELETE_COUNT=$((BACKUP_COUNT - 3))
                                     echo "Deleting $DELETE_COUNT old backups..."
 
-                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -f
-                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT")
+                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -rf
+                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT") 2>/dev/null
                                     git commit -m "Removed old backups, keeping only the latest 3"
                                     git push origin ${TARGET_BRANCH}
                                 else
