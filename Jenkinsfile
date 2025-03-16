@@ -93,7 +93,7 @@ pipeline {
 
                         echo "Cleaning up old backups..."
                         while IFS= read -r item; do
-                            BACKUP_ITEMS=$(ls -1t ${item}_* 2>/dev/null | tail -n +4)  # Keep latest 3, remove older
+                            BACKUP_ITEMS=$(ls -1 ${item}_* 2>/dev/null | sort | head -n -3)  # Sort oldest first, remove older
 
                             if [ -n "$BACKUP_ITEMS" ]; then
                                 echo "Deleting oldest backups: $BACKUP_ITEMS"
