@@ -1,0 +1,4 @@
+good
+print("hello")
+hi hello
+bad
