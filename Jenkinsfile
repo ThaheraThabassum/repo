@@ -42,18 +42,18 @@ pipeline {
                         echo "Reverting files/folders..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
-                                # Rename original to backup
+                                # Rename original file to include _rev_ timestamp
                                 mv "$item" "${item}_rev_${TIMESTAMP}"
                                 echo "Renamed $item -> ${item}_rev_${TIMESTAMP}"
 
-                                # Find latest backup
-                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -v "_rev_" | head -n 1)
+                                # Find latest backup (excluding _rev_ files)
+                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -E "^${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}$" | head -n 1)
 
-                                if [ -n "$LATEST_BACKUP" ]; then
+                                if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
                                     mv "$LATEST_BACKUP" "$item"
                                     echo "Restored $LATEST_BACKUP -> $item"
                                 else
-                                    echo "No backup found for $item"
+                                    echo "No valid backup found for $item"
                                 fi
                             else
                                 echo "$item not found, skipping."
