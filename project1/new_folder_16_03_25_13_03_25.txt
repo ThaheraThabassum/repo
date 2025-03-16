@@ -1,4 +1,0 @@
-1234
-print("hello")
-hi 
-2nhguuv
