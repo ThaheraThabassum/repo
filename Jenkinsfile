@@ -1,5 +1,6 @@
 pipeline {
     agent any
+
     environment {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         SOURCE_BRANCH = 'main'
@@ -7,6 +8,7 @@ pipeline {
         SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_deploy.txt"
     }
+
     stages {
         stage('Prepare Repository') {
             steps {
@@ -40,7 +42,6 @@ pipeline {
                         cd repo
                         git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
-                        git checkout ${SOURCE_BRANCH} -- ${FILES_LIST_FILE}
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
@@ -49,15 +50,15 @@ pipeline {
                             if [ -e "$item" ]; then
                                 BACKUP_ITEM="${item}_$TIMESTAMP"
                                 echo "Backing up $item -> $BACKUP_ITEM"
-
-                                mv "$item" "$BACKUP_ITEM"
+                                cp -r "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
-                                git commit -m "Backup created: $BACKUP_ITEM"
-                                git push origin ${TARGET_BRANCH}
                             else
                                 echo "No existing file or folder found for $item, skipping backup."
                             fi
                         done < ${FILES_LIST_FILE}
+
+                        git commit -m "Backup created before update"
+                        git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
@@ -72,13 +73,13 @@ pipeline {
 
                         echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                         while IFS= read -r item; do
-                            git checkout ${SOURCE_BRANCH} -- "$item"
+                            git checkout ${SOURCE_BRANCH} -- "$item" || echo "Warning: $item not found in source branch"
                             chmod -R 777 "$item"
-
                             git add "$item"
-                            git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-                            git push origin ${TARGET_BRANCH}
                         done < ${FILES_LIST_FILE}
+
+                        git commit -m "Updated files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}" || echo "No changes to commit"
+                        git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
@@ -93,18 +94,19 @@ pipeline {
 
                         echo "Cleaning up old backups..."
                         while IFS= read -r item; do
-                            BACKUP_ITEMS=$(ls -1 ${item}_* 2>/dev/null | sort | head -n -3)  # Sort oldest first, remove older
+                            BACKUP_ITEMS=$(ls -1tr ${item}_* 2>/dev/null | head -n -3)
 
                             if [ -n "$BACKUP_ITEMS" ]; then
                                 echo "Deleting oldest backups: $BACKUP_ITEMS"
                                 rm -rf $BACKUP_ITEMS
-                                git rm -r $BACKUP_ITEMS
-                                git commit -m "Removed oldest backups: $BACKUP_ITEMS"
-                                git push origin ${TARGET_BRANCH}
+                                git rm -r $BACKUP_ITEMS || echo "Warning: Some files were already deleted"
                             else
                                 echo "No old backups found for $item"
                             fi
                         done < ${FILES_LIST_FILE}
+
+                        git commit -m "Removed old backups" || echo "No old backups to delete"
+                        git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
