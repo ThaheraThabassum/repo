@@ -11,52 +11,58 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Cloning repository..."
-                        rm -rf repo
-                        git clone ${GIT_REPO} repo
-                        cd repo
-                        git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
-
-                        # Ensure latest files_to_revert.txt is available
-                        git checkout ${TARGET_BRANCH} -- files_to_revert.txt
+                        echo "Checking if repository already exists..."
+                        if [ -d "repo/.git" ]; then
+                            echo "Repository exists. Fetching latest changes..."
+                            cd repo
+                            git fetch --all
+                            git reset --hard
+                            git clean -fd
+                            git checkout ${TARGET_BRANCH}
+                            git pull origin ${TARGET_BRANCH}
+                        else
+                            echo "Cloning repository..."
+                            git clone ${GIT_REPO} repo
+                            cd repo
+                            git checkout ${TARGET_BRANCH}
+                            git pull origin ${TARGET_BRANCH}
+                        fi
                     '''
                 }
             }
         }
 
-        stage('Revert Files') {
+        stage('Revert Files/Folders from Backup') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
+                        git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
+
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-                        echo "Reverting files..."
-                        while IFS= read -r item; do
-                            if [ -e "$item" ]; then
-                                REV_FILE="${item}_rev_$TIMESTAMP"
-                                echo "Backing up current file: $item -> $REV_FILE"
-                                mv "$item" "$REV_FILE"
-                                git add "$REV_FILE"
-                                git commit -m "Backup before revert: $REV_FILE"
-                                git push origin ${TARGET_BRANCH}
-
-                                BACKUP_FILES=$(ls -t ${item}_* 2>/dev/null | grep -v "$REV_FILE" | head -1)
-                                if [ -n "$BACKUP_FILES" ]; then
-                                    LATEST_BACKUP=$(echo "$BACKUP_FILES" | head -1)
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ] && [ -e "$item" ]; then
+                                echo "Backing up current file: $item -> ${item}_rev_${TIMESTAMP}"
+                                mv "$item" "${item}_rev_${TIMESTAMP}"
+                                git add "${item}_rev_${TIMESTAMP}"
+                            
+                                echo "Finding the latest backup for $item..."
+                                LATEST_BACKUP=$(ls -1 "${item}_"* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n | tail -n 1)
+                            
+                                if [ -n "$LATEST_BACKUP" ]; then
                                     echo "Restoring latest backup: $LATEST_BACKUP -> $item"
                                     mv "$LATEST_BACKUP" "$item"
                                     git add "$item"
-                                    git commit -m "Reverted $item to latest backup: $LATEST_BACKUP"
-                                    git push origin ${TARGET_BRANCH}
                                 else
                                     echo "No backup found for $item, skipping restore."
                                 fi
-                            else
-                                echo "File $item does not exist, skipping."
                             fi
                         done < ${FILES_REVERT_LIST}
+
+                        git commit -m "Reverted files from backup"
+                        git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
