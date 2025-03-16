@@ -45,20 +45,12 @@ pipeline {
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         echo "Creating backups..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ] && [ -e "$item" ]; then
-                                if [[ "$item" == *.* ]]; then
-                                    # File with extension
-                                    filename="${item%.*}"
-                                    extension="${item##*.}"
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
-                                else
-                                    # File without extension
-                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
-                                fi
-
+                        while IFS= read -r item; do
+                            if [ -e "$item" ]; then
+                                BACKUP_ITEM="${item}_$TIMESTAMP"
                                 echo "Backing up $item -> $BACKUP_ITEM"
-                                cp -r "$item" "$BACKUP_ITEM"
+
+                                mv "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
                                 git commit -m "Backup created: $BACKUP_ITEM"
                                 git push origin ${TARGET_BRANCH}
@@ -79,14 +71,13 @@ pipeline {
                         git checkout ${TARGET_BRANCH}
 
                         echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ]; then
-                                git checkout ${SOURCE_BRANCH} -- "$item"
-                                chmod -R 777 "$item"
-                                git add "$item"
-                                git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-                                git push origin ${TARGET_BRANCH}
-                            fi
+                        while IFS= read -r item; do
+                            git checkout ${SOURCE_BRANCH} -- "$item"
+                            chmod -R 777 "$item"
+
+                            git add "$item"
+                            git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                            git push origin ${TARGET_BRANCH}
                         done < ${FILES_LIST_FILE}
                     '''
                 }
@@ -99,35 +90,21 @@ pipeline {
                     sh '''
                         cd repo
                         git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
 
                         echo "Cleaning up old backups..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ]; then
-                                echo "Checking backups for $item..."
-                                if [[ "$item" == *.* ]]; then
-                                    filename="${item%.*}"
-                                    extension="${item##*.}"
-                                    BACKUP_PATTERN="${filename}_*.${extension}"
-                                else
-                                    BACKUP_PATTERN="${item}_*"
-                                fi
-
-                                BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
-
-                                echo "Found backups: $BACKUP_ITEMS"
-                                BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
+                        while IFS= read -r item; do
+                            BACKUP_ITEMS=$(ls -d ${item}_* 2>/dev/null)
+                            if [ -n "$BACKUP_ITEMS" ]; then
+                                SORTED_BACKUPS=$(echo "$BACKUP_ITEMS" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
+                                BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
 
                                 if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                    DELETE_COUNT=$((BACKUP_COUNT - 3))
-                                    echo "Deleting $DELETE_COUNT old backups..."
-
-                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -f
-                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT")
-                                    git commit -m "Removed old backups, keeping only the latest 3"
+                                    OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
+                                    echo "Deleting oldest backup: $OLDEST_BACKUP"
+                                    rm -rf "$OLDEST_BACKUP"
+                                    git rm -r "$OLDEST_BACKUP"
+                                    git commit -m "Removed oldest backup: $OLDEST_BACKUP"
                                     git push origin ${TARGET_BRANCH}
-                                else
-                                    echo "No old backups to delete."
                                 fi
                             fi
                         done < ${FILES_LIST_FILE}
