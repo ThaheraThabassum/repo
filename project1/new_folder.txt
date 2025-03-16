@@ -1,4 +1,3 @@
-1234563
-hi
+
 print("hello")
 hi hello
