@@ -51,13 +51,13 @@ pipeline {
                                 extension="${item##*.}"
 
                                 if [ "$filename" == "$item" ]; then
-                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.txt"
                                 else
                                     BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
                                 fi
 
                                 echo "Backing up $item -> $BACKUP_ITEM"
-                                mv "$item" "$BACKUP_ITEM"
+                                cp -r "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
                                 git commit -m "Backup created: $BACKUP_ITEM"
                                 git push origin ${TARGET_BRANCH}
@@ -102,16 +102,19 @@ pipeline {
                         echo "Cleaning up old backups..."
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
-                                BACKUP_ITEMS=$(ls -d ${item}_* 2>/dev/null | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6)
+                                # Finding backups that match new naming format (item_TIMESTAMP.txt)
+                                BACKUP_ITEMS=$(ls -d ${item}_*.txt 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
                                 BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
                                 
                                 if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                    OLDEST_BACKUP=$(echo "$BACKUP_ITEMS" | awk '{print $1}')
-                                    echo "Deleting oldest backup: $OLDEST_BACKUP"
-                                    rm -rf "$OLDEST_BACKUP"
-                                    git rm -r "$OLDEST_BACKUP"
-                                    git commit -m "Removed oldest backup: $OLDEST_BACKUP"
+                                    DELETE_COUNT=$((BACKUP_COUNT - 3))
+                                    echo "Deleting $DELETE_COUNT old backups..."
+                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -f
+                                    git add -u
+                                    git commit -m "Removed old backups, keeping only the latest 3"
                                     git push origin ${TARGET_BRANCH}
+                                else
+                                    echo "No old backups to delete."
                                 fi
                             fi
                         done < ${FILES_LIST_FILE}
