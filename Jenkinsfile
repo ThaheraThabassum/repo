@@ -99,12 +99,12 @@ pipeline {
                                 BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
 
                                 if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                    OLDEST_BACKUPS=$(echo "$SORTED_BACKUPS" | head -n $((BACKUP_COUNT - 3)))
-                                    for OLDEST_BACKUP in $OLDEST_BACKUPS; do
-                                        echo "Deleting oldest backup: $OLDEST_BACKUP"
-                                        rm -rf "$OLDEST_BACKUP"
-                                        git rm -r "$OLDEST_BACKUP"
-                                        git commit -m "Removed oldest backup: $OLDEST_BACKUP"
+                                    OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | head -n $((BACKUP_COUNT - 3)))
+                                    for old_backup in $OLDEST_BACKUP; do
+                                        echo "Deleting oldest backup: $old_backup"
+                                        rm -rf "$old_backup"
+                                        git rm -r "$old_backup"
+                                        git commit -m "Removed oldest backup: $old_backup"
                                         git push origin ${TARGET_BRANCH}
                                     done
                                 fi
