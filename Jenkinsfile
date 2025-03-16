@@ -4,7 +4,7 @@ pipeline {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_REVERT_LIST = "files_to_revert.txt"
+        FILES_LIST_FILE = "files_to_revert.txt"
     }
     stages {
         stage('Prepare Repository') {
@@ -32,7 +32,7 @@ pipeline {
             }
         }
 
-        stage('Revert Files/Folders from Backup') {
+        stage('Revert Files/Folders') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -42,15 +42,18 @@ pipeline {
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
+                        echo "Reverting files/folders..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
-                                echo "Backing up current file: $item -> ${item}_rev_${TIMESTAMP}"
-                                mv "$item" "${item}_rev_${TIMESTAMP}"
-                                git add "${item}_rev_${TIMESTAMP}"
-                            
-                                echo "Finding the latest backup for $item..."
-                                LATEST_BACKUP=$(ls -1 "${item}_"* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | sort -t '_' -k 3,3n -k 2,2n -k 1,1n -k 4,4n -k 5,5n -k 6,6n | tail -n 1)
-                            
+                                # Backup current file/folder before replacing it
+                                BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
+                                echo "Backing up $item -> $BACKUP_ITEM"
+                                mv "$item" "$BACKUP_ITEM"
+                                git add "$BACKUP_ITEM"
+
+                                # Find the latest backup version
+                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -v "_rev_" | head -n 1)
+
                                 if [ -n "$LATEST_BACKUP" ]; then
                                     echo "Restoring latest backup: $LATEST_BACKUP -> $item"
                                     mv "$LATEST_BACKUP" "$item"
@@ -58,10 +61,12 @@ pipeline {
                                 else
                                     echo "No backup found for $item, skipping restore."
                                 fi
+                            else
+                                echo "File/folder $item not found, skipping."
                             fi
-                        done < ${FILES_REVERT_LIST}
+                        done < ${FILES_LIST_FILE}
 
-                        git commit -m "Reverted files from backup"
+                        git commit -m "Reverted files based on ${FILES_LIST_FILE}"
                         git push origin ${TARGET_BRANCH}
                     '''
                 }
