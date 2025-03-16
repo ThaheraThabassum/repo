@@ -28,6 +28,8 @@ pipeline {
                             git checkout ${SOURCE_BRANCH}
                             git pull origin ${SOURCE_BRANCH}
                         fi
+                        git config user.email "thahera.t@algonox.com"
+                        git config user.name "Thahera Thabassum"
                     '''
                 }
             }
@@ -108,7 +110,7 @@ pipeline {
                                         git commit -m "Removed oldest backup directory: $OLDEST_BACKUP"
                                         git push origin ${TARGET_BRANCH}
                                     fi
-                                }
+                                fi
                             # Handle files
                             elif [ -f "$item" ]; then
                                 BACKUP_FILES=$(ls -d ${item}_* 2>/dev/null | grep -E "^${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}$")
@@ -124,8 +126,8 @@ pipeline {
                                         git commit -m "Removed oldest backup file: $OLDEST_BACKUP"
                                         git push origin ${TARGET_BRANCH}
                                     fi
-                                }
-                            fi
+                                fi
+                            fi # End of if/elif/fi
                         done < ${FILES_LIST_FILE}
                     '''
                 }
