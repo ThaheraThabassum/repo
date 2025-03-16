@@ -11,9 +11,8 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Checking if repository already exists..."
+                        echo "Fetching latest changes..."
                         if [ -d "repo/.git" ]; then
-                            echo "Repository exists. Fetching latest changes..."
                             cd repo
                             git fetch --all
                             git reset --hard
@@ -21,11 +20,9 @@ pipeline {
                             git checkout ${TARGET_BRANCH}
                             git pull origin ${TARGET_BRANCH}
                         else
-                            echo "Cloning repository..."
                             git clone ${GIT_REPO} repo
                             cd repo
                             git checkout ${TARGET_BRANCH}
-                            git pull origin ${TARGET_BRANCH}
                         fi
                     '''
                 }
@@ -45,28 +42,26 @@ pipeline {
                         echo "Reverting files/folders..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
-                                # Backup current file/folder before replacing it
-                                BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
-                                echo "Backing up $item -> $BACKUP_ITEM"
-                                mv "$item" "$BACKUP_ITEM"
-                                git add "$BACKUP_ITEM"
+                                # Rename original to backup
+                                mv "$item" "${item}_rev_${TIMESTAMP}"
+                                echo "Renamed $item -> ${item}_rev_${TIMESTAMP}"
 
-                                # Find the latest backup specific to the item
-                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
+                                # Find latest backup
+                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -v "_rev_" | head -n 1)
 
-                                if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
-                                    echo "Restoring latest backup: $LATEST_BACKUP -> $item"
+                                if [ -n "$LATEST_BACKUP" ]; then
                                     mv "$LATEST_BACKUP" "$item"
-                                    git add "$item"
+                                    echo "Restored $LATEST_BACKUP -> $item"
                                 else
-                                    echo "No valid backup found for $item, skipping restore."
+                                    echo "No backup found for $item"
                                 fi
                             else
-                                echo "File/folder $item not found, skipping."
+                                echo "$item not found, skipping."
                             fi
                         done < ${FILES_LIST_FILE}
 
-                        git commit -m "Reverted files based on ${FILES_LIST_FILE}"
+                        git add .
+                        git commit -m "Reverted files from backup"
                         git push origin ${TARGET_BRANCH}
                     '''
                 }
