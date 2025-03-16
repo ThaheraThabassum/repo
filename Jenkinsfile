@@ -93,21 +93,16 @@ pipeline {
 
                         echo "Cleaning up old backups..."
                         while IFS= read -r item; do
-                            BACKUP_ITEMS=$(ls -d ${item}_* 2>/dev/null)
-                            if [ -n "$BACKUP_ITEMS" ]; then
-                                SORTED_BACKUPS=$(echo "$BACKUP_ITEMS" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
-                                BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
+                            BACKUP_ITEMS=$(ls -1t ${item}_* 2>/dev/null | tail -n +4)  # Keep latest 3, remove older
 
-                                if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                    OLDEST_BACKUPS=$(echo "$SORTED_BACKUPS" | head -n $((BACKUP_COUNT - 3)))
-                                    for OLDEST_BACKUP in $OLDEST_BACKUPS; do
-                                        echo "Deleting oldest backup: $OLDEST_BACKUP"
-                                        rm -rf "$OLDEST_BACKUP"
-                                        git rm -r "$OLDEST_BACKUP"
-                                        git commit -m "Removed oldest backup: $OLDEST_BACKUP"
-                                        git push origin ${TARGET_BRANCH}
-                                    done
-                                fi
+                            if [ -n "$BACKUP_ITEMS" ]; then
+                                echo "Deleting oldest backups: $BACKUP_ITEMS"
+                                rm -rf $BACKUP_ITEMS
+                                git rm -r $BACKUP_ITEMS
+                                git commit -m "Removed oldest backups: $BACKUP_ITEMS"
+                                git push origin ${TARGET_BRANCH}
+                            else
+                                echo "No old backups found for $item"
                             fi
                         done < ${FILES_LIST_FILE}
                     '''
