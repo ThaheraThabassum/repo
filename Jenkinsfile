@@ -4,7 +4,7 @@ pipeline {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_LIST_FILE = "items_to_revert.txt" // Generalized file name
+        FILES_LIST_FILE = "files_to_revert.txt" // Generalized file name
     }
     stages {
         stage('Prepare Repository') {
