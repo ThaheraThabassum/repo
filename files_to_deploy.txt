@@ -1,2 +1,2 @@
-project1/new_folder.txt
+project1
 new_testing
