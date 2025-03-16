@@ -104,17 +104,22 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 echo "Checking backups for $item..."
-
-                                # Get all backups that match the pattern "<item>_TIMESTAMP.txt"
-                                BACKUP_ITEMS=$(ls -1 ${item}_*.txt 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
+                                filename="${item%.*}"
+                                extension="${item##*.}"
+                                if [ "$filename" == "$item" ]; then
+                                    BACKUP_PATTERN="${filename}_*.txt"
+                                else
+                                    BACKUP_PATTERN="${filename}_*.${extension}"
+                                fi
+                                BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
 
                                 echo "Found backups: $BACKUP_ITEMS"
                                 BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
-                                
+
                                 if [ "$BACKUP_COUNT" -gt 3 ]; then
                                     DELETE_COUNT=$((BACKUP_COUNT - 3))
                                     echo "Deleting $DELETE_COUNT old backups..."
-                                    
+
                                     echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -f
                                     git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT")
                                     git commit -m "Removed old backups, keeping only the latest 3"
