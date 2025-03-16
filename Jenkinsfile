@@ -93,19 +93,38 @@ pipeline {
 
                         echo "Cleaning up old backups..."
                         while IFS= read -r item; do
-                            BACKUP_ITEMS=$(ls -d ${item}_* 2>/dev/null)
-                            if [ -n "$BACKUP_ITEMS" ]; then
-                                SORTED_BACKUPS=$(echo "$BACKUP_ITEMS" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
-                                BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
+                            # Handle directories
+                            if [ -d "$item" ]; then
+                                BACKUP_DIRS=$(ls -d ${item}_* 2>/dev/null | grep -E "^${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}$")
+                                if [ -n "$BACKUP_DIRS" ]; then
+                                    SORTED_BACKUPS=$(echo "$BACKUP_DIRS" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
+                                    BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
 
-                                if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                    OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
-                                    echo "Deleting oldest backup: $OLDEST_BACKUP"
-                                    rm -rf "$OLDEST_BACKUP"
-                                    git rm -r "$OLDEST_BACKUP"
-                                    git commit -m "Removed oldest backup: $OLDEST_BACKUP"
-                                    git push origin ${TARGET_BRANCH}
-                                fi
+                                    if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                        OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
+                                        echo "Deleting oldest backup directory: $OLDEST_BACKUP"
+                                        rm -rf "$OLDEST_BACKUP"
+                                        git rm -r "$OLDEST_BACKUP"
+                                        git commit -m "Removed oldest backup directory: $OLDEST_BACKUP"
+                                        git push origin ${TARGET_BRANCH}
+                                    fi
+                                }
+                            # Handle files
+                            elif [ -f "$item" ]; then
+                                BACKUP_FILES=$(ls -d ${item}_* 2>/dev/null | grep -E "^${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}$")
+                                if [ -n "$BACKUP_FILES" ]; then
+                                    SORTED_BACKUPS=$(echo "$BACKUP_FILES" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
+                                    BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
+
+                                    if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                        OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
+                                        echo "Deleting oldest backup file: $OLDEST_BACKUP"
+                                        rm -rf "$OLDEST_BACKUP"
+                                        git rm -r "$OLDEST_BACKUP"
+                                        git commit -m "Removed oldest backup file: $OLDEST_BACKUP"
+                                        git push origin ${TARGET_BRANCH}
+                                    fi
+                                }
                             fi
                         done < ${FILES_LIST_FILE}
                     '''
