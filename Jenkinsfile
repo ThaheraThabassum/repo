@@ -52,7 +52,7 @@ pipeline {
                                     REVERT_ITEM="${filename}_rev_${TIMESTAMP}"
                                 else
                                     REVERT_ITEM="${filename}_rev_${TIMESTAMP}.${extension}"
-                                }
+                                fi
 
                                 echo "Reverting $item -> $REVERT_ITEM"
                                 mv "$item" "$REVERT_ITEM"
@@ -63,9 +63,9 @@ pipeline {
                                     BACKUP_PATTERN="${filename}_*"
                                 else
                                     BACKUP_PATTERN="${filename}_*.${extension}"
-                                }
+                                fi
 
-                                BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | grep -v "_rev_" | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
+                                BACKUP_ITEMS=$(ls -1 "${BACKUP_PATTERN}" 2>/dev/null | grep -v "_rev_" | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
                                 LATEST_BACKUP=$(echo "$BACKUP_ITEMS" | tail -n 1)
 
                                 if [ -n "$LATEST_BACKUP" ]; then
@@ -83,7 +83,7 @@ pipeline {
                             else
                                 echo "Item not found: $item"
                             fi
-                        done < ${FILES_LIST_FILE}
+                        done < "${FILES_LIST_FILE}"
                     '''
                 }
             }
