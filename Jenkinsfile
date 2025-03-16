@@ -47,9 +47,19 @@ pipeline {
                         echo "Creating backups..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
-                                BACKUP_ITEM="${item}_$TIMESTAMP"
-                                echo "Backing up $item -> $BACKUP_ITEM"
+                                # Extract filename and extension
+                                filename="${item%.*}"
+                                extension="${item##*.}"
 
+                                if [ "$filename" == "$item" ]; then
+                                    # No extension case (folder or file without extension)
+                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                else
+                                    # File with extension
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
+                                fi
+
+                                echo "Backing up $item -> $BACKUP_ITEM"
                                 mv "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
                                 git commit -m "Backup created: $BACKUP_ITEM"
