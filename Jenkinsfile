@@ -50,8 +50,8 @@ pipeline {
                                 filename="${item%.*}"
                                 extension="${item##*.}"
 
-                                if [ "$filename" == "$item" ]; then
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.txt"
+                                if [ -z "$extension" ]; then # Check if extension is empty
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}"
                                 else
                                     BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
                                 fi
@@ -106,8 +106,8 @@ pipeline {
                                 echo "Checking backups for $item..."
                                 filename="${item%.*}"
                                 extension="${item##*.}"
-                                if [ "$filename" == "$item" ]; then
-                                    BACKUP_PATTERN="${filename}_*.txt"
+                                if [ -z "$extension" ]; then
+                                    BACKUP_PATTERN="${filename}_*"
                                 else
                                     BACKUP_PATTERN="${filename}_*.${extension}"
                                 fi
