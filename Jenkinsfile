@@ -51,7 +51,8 @@ pipeline {
                                 extension="${item##*.}"
 
                                 if [ "$filename" == "$item" ]; then
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.txt"
+                                    # No extension
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}"
                                 else
                                     BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
                                 fi
@@ -107,7 +108,7 @@ pipeline {
                                 filename="${item%.*}"
                                 extension="${item##*.}"
                                 if [ "$filename" == "$item" ]; then
-                                    BACKUP_PATTERN="${filename}_*.txt"
+                                    BACKUP_PATTERN="${filename}_*"
                                 else
                                     BACKUP_PATTERN="${filename}_*.${extension}"
                                 fi
