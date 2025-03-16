@@ -51,15 +51,15 @@ pipeline {
                                 mv "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
 
-                                # Find the latest backup version
-                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -v "_rev_" | head -n 1)
+                                # Find the latest backup specific to the item
+                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
 
-                                if [ -n "$LATEST_BACKUP" ]; then
+                                if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
                                     echo "Restoring latest backup: $LATEST_BACKUP -> $item"
                                     mv "$LATEST_BACKUP" "$item"
                                     git add "$item"
                                 else
-                                    echo "No backup found for $item, skipping restore."
+                                    echo "No valid backup found for $item, skipping restore."
                                 fi
                             else
                                 echo "File/folder $item not found, skipping."
