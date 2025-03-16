@@ -19,7 +19,6 @@ pipeline {
             steps {
                 script {
                     echo "Checking out main branch..."
-                    // Checkout the main branch explicitly
                     sh 'git checkout main'
                 }
             }
@@ -29,12 +28,14 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Listing files in workspace to ensure db_config.xlsx exists..."
-                        ls -l ${WORKSPACE}  # Check the contents of the workspace
-                        echo "Uploading Excel file to remote server..."
+                        echo "Deleting old Excel file on the destination server..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'rm -f ${REMOTE_EXCEL_PATH}'
+
+                        echo "Uploading updated Excel file to ${DEST_HOST}..."
                         scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
-                        echo "Upload completed. Listing files on remote server..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'ls -l ${REMOTE_EXCEL_PATH}'
+
+                        echo "Verifying the contents of db_config.xlsx on ${DEST_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'cat ${REMOTE_EXCEL_PATH}'
                     """
                 }
             }
@@ -44,7 +45,7 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Connecting to ${REMOTE_HOST} to generate scripts..."
+                        echo "Executing script on ${REMOTE_HOST} to generate SQL dumps..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
 
                         echo "Successfully logged in!"
@@ -58,22 +59,34 @@ import os
 import datetime
 import subprocess
 
+# Load the Excel file
 excel_file = "${REMOTE_EXCEL_PATH}"
 df = pd.read_excel(excel_file)
 
+# Debug: Print the file content to verify correctness
+print("🔍 Excel File Content Read:")
+print(df)
+
+# Remove invalid rows (empty database/table values)
+df = df.dropna(subset=['database', 'table'])
+df = df.applymap(lambda x: str(x).strip() if isinstance(x, str) else x)
+
+# Credentials
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "AlgoTeam123"
 
+# Timestamp for unique file naming
 timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
 script_list = []
 
+# Process each row
 for index, row in df.iterrows():
-    db_name = str(row["database"]).strip()
-    table_name = str(row["table"]).strip()
-    option = str(row["option"]).strip().lower()  # Ensure it's lowercase and trimmed
+    db_name = row["database"]
+    table_name = row["table"]
+    option = row["option"].strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
-    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition}")  # Debug Print
+    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition}")
 
     dump_file = f"{table_name}_{timestamp}.sql"
     dump_command = None
@@ -93,21 +106,20 @@ for index, row in df.iterrows():
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
         
-        print(f"🟢 Running Command: {dump_command}")  # DEBUG PRINT
+        print(f"🟢 Running Command: {dump_command}")
 
         try:
-            result = subprocess.run(dump_command, shell=True, check=True, capture_output=True, text=True)
+            subprocess.run(dump_command, shell=True, check=True)
             print(f"✅ Dump generated: {dump_file}")
             script_list.append(dump_file)
         except subprocess.CalledProcessError as e:
-            print(f"❌ Error executing dump: {e.stderr}")
+            print(f"❌ Error executing dump: {e}")
 
-# Save transferred scripts list
+# Save the list of transferred scripts
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
     f.write("\\n".join(script_list))
 
-print("✅ Scripts generated successfully in /home/thahera/")
-print(f"🕒 Timestamp used: {timestamp}")
+print("✅ All scripts generated successfully!")
 
 EOPYTHON
 
@@ -160,8 +172,7 @@ with open("${TRANSFERRED_SCRIPTS}", "r") as f:
 for index, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
-    option = str(row["option"]).strip().lower()
-    where_condition = str(row.get("where_condition", "")).strip()
+    option = row["option"].strip().lower()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
     check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
@@ -173,24 +184,16 @@ for index, row in databases.iterrows():
         continue
 
     if result == "1":
-        print(f"✅ Table '{table_name}' exists in '{db_name}', taking backup...")
         backup_table = f"{table_name}_{timestamp}"
-
         create_backup_structure = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE IF NOT EXISTS {db_name}.{backup_table} LIKE {db_name}.{table_name};"'
         backup_data_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};"'
         
-        try:
-            subprocess.check_call(create_backup_structure, shell=True)
-            subprocess.check_call(backup_data_command, shell=True)
-            print(f"✅ Backup created: {backup_table}")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error creating backup table: {e}")
-            continue
+        subprocess.check_call(create_backup_structure, shell=True)
+        subprocess.check_call(backup_data_command, shell=True)
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
         subprocess.call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
-        print(f"✅ Loaded script: {script_file}")
 
 EOPYTHON
 
