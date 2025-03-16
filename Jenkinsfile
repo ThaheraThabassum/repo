@@ -4,7 +4,7 @@ pipeline {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_LIST_FILE = "files_to_revert.txt" // Generalized file name
+        FILES_LIST_FILE = "items_to_revert.txt" // Generalized file name
     }
     stages {
         stage('Prepare Repository') {
@@ -52,7 +52,7 @@ pipeline {
                                     REVERT_ITEM="${filename}_rev_${TIMESTAMP}"
                                 else
                                     REVERT_ITEM="${filename}_rev_${TIMESTAMP}.${extension}"
-                                }
+                                fi
 
                                 echo "Reverting $item -> $REVERT_ITEM"
                                 mv "$item" "$REVERT_ITEM"
@@ -63,7 +63,7 @@ pipeline {
                                     BACKUP_PATTERN="${filename}_*"
                                 else
                                     BACKUP_PATTERN="${filename}_*.${extension}"
-                                }
+                                fi
 
                                 BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | grep -v "_rev_" | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
                                 LATEST_BACKUP=$(echo "$BACKUP_ITEMS" | tail -n 1)
