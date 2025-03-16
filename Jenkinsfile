@@ -94,17 +94,25 @@ pipeline {
 
                         echo "Cleaning up old backups..."
                         while IFS= read -r item; do
-                            BACKUP_ITEMS=$(ls -1t ${item}_*)
-                            BACKUP_TO_DELETE=$(ls -1t ${item}_* | tail -n +$(($(ls -1t ${item}_* | wc -l) - 3)))
+                            BACKUP_ITEMS=$(ls -1t ${item}_* 2>/dev/null || echo "")
+                            
+                            if [ -z "$BACKUP_ITEMS" ]; then
+                                echo "No backups found for $item"
+                                continue
+                            fi
 
-                            if [ -n "$BACKUP_TO_DELETE" ]; then
+                            BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -l)
+
+                            if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                BACKUP_TO_DELETE=$(echo "$BACKUP_ITEMS" | sed -n '4,$p')
+
                                 echo "Deleting oldest backups: $BACKUP_TO_DELETE"
                                 echo "$BACKUP_TO_DELETE" | xargs rm -rf
                                 echo "$BACKUP_TO_DELETE" | xargs git rm -rf
-                                git commit -m "Removed oldest backups: $BACKUP_TO_DELETE"
+                                git commit -m "Removed oldest backups for $item"
                                 git push origin ${TARGET_BRANCH}
                             else
-                                echo "No old backups found for $item"
+                                echo "Less than or equal to 3 backups exist for $item, skipping cleanup."
                             fi
                         done < ${FILES_LIST_FILE}
                     '''
