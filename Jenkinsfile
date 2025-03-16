@@ -69,6 +69,7 @@ pipeline {
                     sh '''
                         cd repo
                         git checkout ${TARGET_BRANCH}
+                        git reset --hard
 
                         echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                         while IFS= read -r item; do
