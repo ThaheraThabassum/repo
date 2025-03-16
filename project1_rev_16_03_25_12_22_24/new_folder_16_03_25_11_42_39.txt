@@ -1,0 +1,3 @@
+tr
+print("hello")
+hi hello
