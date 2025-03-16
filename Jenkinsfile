@@ -51,7 +51,7 @@ pipeline {
                                 extension="${item##*.}"
 
                                 if [ -z "$extension" ]; then # Check if extension is empty
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}"
+                                    BACKUP_ITEM="${item}_${TIMESTAMP}" #Use original item name for no extension case.
                                 else
                                     BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
                                 fi
@@ -107,7 +107,7 @@ pipeline {
                                 filename="${item%.*}"
                                 extension="${item##*.}"
                                 if [ -z "$extension" ]; then
-                                    BACKUP_PATTERN="${filename}_*"
+                                    BACKUP_PATTERN="${item}_*" #use original item name for no extension case.
                                 else
                                     BACKUP_PATTERN="${filename}_*.${extension}"
                                 fi
