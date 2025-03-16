@@ -1,100 +1,105 @@
 pipeline {
     agent any
-
     environment {
-        REPO_URL = 'git@github.com:ThaheraThabassum/repo.git'
-        BRANCH_MAIN = 'main'
-        BRANCH_AUTOMATE = 'automate'
-        SSH_CREDENTIALS = 'git'
+        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
+        SOURCE_BRANCH = 'main'
+        TARGET_BRANCH = 'automate'
+        SSH_KEY = 'jenkins-ssh-key1'
+        FILES_LIST_FILE = "files_to_deploy.txt"
     }
-
     stages {
-        stage('Checkout SCM') {
-            steps {
-                checkout([$class: 'GitSCM', 
-                    branches: [[name: BRANCH_MAIN]], 
-                    userRemoteConfigs: [[url: REPO_URL, credentialsId: SSH_CREDENTIALS]]
-                ])
-            }
-        }
-
         stage('Prepare Repository') {
             steps {
-                sshagent(credentials: [SSH_CREDENTIALS]) {
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo Checking if repository already exists...
-                        [ -d repo/.git ] && echo "Repository exists. Fetching latest changes..." || git clone $REPO_URL repo
-                        cd repo
-                        git fetch --all
-                        git reset --hard
-                        git clean -fd
-                        git checkout $BRANCH_MAIN
-                        git pull origin $BRANCH_MAIN
+                        echo "Checking if repository already exists..."
+                        if [ -d "repo/.git" ]; then
+                            echo "Repository exists. Fetching latest changes..."
+                            cd repo
+                            git fetch --all
+                            git reset --hard
+                            git clean -fd
+                            git checkout ${SOURCE_BRANCH}
+                            git pull origin ${SOURCE_BRANCH}
+                        else
+                            echo "Cloning repository..."
+                            git clone ${GIT_REPO} repo
+                            cd repo
+                            git checkout ${SOURCE_BRANCH}
+                            git pull origin ${SOURCE_BRANCH}
+                        fi
                     '''
                 }
             }
         }
 
-        stage('Backup Existing Files/Folders') {
+        stage('Backup Existing Files (If Present)') {
             steps {
-                sshagent(credentials: [SSH_CREDENTIALS]) {
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
-                        git checkout $BRANCH_AUTOMATE
-                        git pull origin $BRANCH_AUTOMATE
+                        git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
+                        git checkout ${SOURCE_BRANCH} -- ${FILES_LIST_FILE}
+
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
-                        for item in $(cat files_to_deploy.txt); do
-                            if [ -e "$item" ]; then
-                                BACKUP_ITEM=${item}_${TIMESTAMP}
-                                echo "Backing up $item -> $BACKUP_ITEM"
-                                mv "$item" "$BACKUP_ITEM"
-                                git add "$BACKUP_ITEM"
-                                git commit -m "Backup created: $BACKUP_ITEM"
-                                git push origin $BRANCH_AUTOMATE
+
+                        echo "Checking files for backup..."
+                        while IFS= read -r file; do
+                            if [ -e "$file" ]; then
+                                BACKUP_FILE="${file}_$TIMESTAMP"
+                                mv "$file" "$BACKUP_FILE"
+                                echo "Backup created: $BACKUP_FILE"
+
+                                git add "$BACKUP_FILE"
+                                git commit -m "Backup created: $BACKUP_FILE"
+                                git push origin ${TARGET_BRANCH}
+
+                                # Get the list of backup files and sort by timestamp numerically
+                                BACKUP_FILES=$(ls ${file}_* 2>/dev/null)
+                                if [ -n "$BACKUP_FILES" ]; then
+                                    SORTED_BACKUPS=$(echo "$BACKUP_FILES" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
+                                    BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
+
+                                    if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                        OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
+                                        echo "Deleting oldest backup: $OLDEST_BACKUP"
+
+                                        if [ -n "$OLDEST_BACKUP" ]; then
+                                            rm -f "$OLDEST_BACKUP"
+                                            git rm "$OLDEST_BACKUP"
+                                            git commit -m "Removed oldest backup: $OLDEST_BACKUP"
+                                            git push origin ${TARGET_BRANCH}
+                                        fi
+                                    fi
+                                fi
+                            else
+                                echo "No existing file found for $file, skipping backup."
                             fi
-                        done
+                        done < ${FILES_LIST_FILE}
                     '''
                 }
             }
         }
 
-        stage('Copy Files/Folders to Target Branch') {
+        stage('Copy Files to Target Branch') {
             steps {
-                sshagent(credentials: [SSH_CREDENTIALS]) {
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
-                        git checkout $BRANCH_AUTOMATE
-                        git reset --hard
-                        echo "Copying specific files/folders from $BRANCH_MAIN to $BRANCH_AUTOMATE..."
-                        for item in $(cat files_to_deploy.txt); do
-                            git checkout $BRANCH_MAIN -- "$item"
-                            chmod -R 777 "$item"
-                            git add "$item"
-                            git commit -m "Backup (if exists) & Copy: $item from $BRANCH_MAIN to $BRANCH_AUTOMATE"
-                            git push origin $BRANCH_AUTOMATE
-                        done
-                    '''
-                }
-            }
-        }
+                        git checkout ${TARGET_BRANCH}
 
-        stage('Remove Old Backups (Keep Only 3)') {
-            steps {
-                sshagent(credentials: [SSH_CREDENTIALS]) {
-                    sh '''
-                        cd repo
-                        git checkout $BRANCH_AUTOMATE
-                        echo "Cleaning up old backups..."
-                        for item in $(cat files_to_deploy.txt); do
-                            BACKUP_ITEMS=$(ls -1t ${item}_* 2>/dev/null | tail -n +4)
-                            if [ -n "$BACKUP_ITEMS" ]; then
-                                echo "Removing old backups for $item..."
-                                rm -rf $BACKUP_ITEMS
-                                git rm -r $BACKUP_ITEMS
-                                git commit -m "Removed old backups for $item"
-                                git push origin $BRANCH_AUTOMATE
-                            fi
-                        done
+                        echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                        while IFS= read -r file; do
+                            git checkout ${SOURCE_BRANCH} -- "$file"
+                            echo "Setting 777 permissions to $file..."
+                            chmod 777 "$file"
+
+                            echo "Committing changes for $file..."
+                            git add "$file"
+                            git commit -m "Backup (if exists) & Copy: $file from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                            git push origin ${TARGET_BRANCH}
+                        done < ${FILES_LIST_FILE}
                     '''
                 }
             }
