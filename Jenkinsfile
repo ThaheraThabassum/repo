@@ -47,13 +47,14 @@ pipeline {
                         echo "Creating backups..."
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ] && [ -e "$item" ]; then
-                                filename="${item%.*}"
-                                extension="${item##*.}"
-
-                                if [ "$filename" == "$item" ]; then
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}"
-                                else
+                                if [[ "$item" == *.* ]]; then
+                                    # File with extension
+                                    filename="${item%.*}"
+                                    extension="${item##*.}"
                                     BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
+                                else
+                                    # File without extension
+                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
                                 fi
 
                                 echo "Backing up $item -> $BACKUP_ITEM"
@@ -104,13 +105,12 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 echo "Checking backups for $item..."
-                                filename="${item%.*}"
-                                extension="${item##*.}"
-
-                                if [ "$filename" == "$item" ] ; then
-                                    BACKUP_PATTERN="${filename}_*"
-                                else
+                                if [[ "$item" == *.* ]]; then
+                                    filename="${item%.*}"
+                                    extension="${item##*.}"
                                     BACKUP_PATTERN="${filename}_*.${extension}"
+                                else
+                                    BACKUP_PATTERN="${item}_*"
                                 fi
 
                                 BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
