@@ -33,7 +33,7 @@ pipeline {
             }
         }
 
-        stage('Backup Existing Files (If Present)') {
+        stage('Backup Existing Files/Folders') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -44,37 +44,25 @@ pipeline {
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-                        echo "Checking files for backup..."
-                        while IFS= read -r file; do
-                            if [ -e "$file" ]; then
-                                BACKUP_FILE="${file}_$TIMESTAMP"
-                                mv "$file" "$BACKUP_FILE"
-                                echo "Backup created: $BACKUP_FILE"
+                        echo "Creating backups..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ] && [ -e "$item" ]; then
+                                filename="${item%.*}"
+                                extension="${item##*.}"
 
-                                git add "$BACKUP_FILE"
-                                git commit -m "Backup created: $BACKUP_FILE"
-                                git push origin ${TARGET_BRANCH}
-
-                                # Get the list of backup files and sort by timestamp numerically
-                                BACKUP_FILES=$(ls ${file}_* 2>/dev/null)
-                                if [ -n "$BACKUP_FILES" ]; then
-                                    SORTED_BACKUPS=$(echo "$BACKUP_FILES" | tr ' ' '\\n' | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6 | tr '\\n' ' ')
-                                    BACKUP_COUNT=$(echo "$SORTED_BACKUPS" | wc -w)
-
-                                    if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                        OLDEST_BACKUP=$(echo "$SORTED_BACKUPS" | awk '{print $1}')
-                                        echo "Deleting oldest backup: $OLDEST_BACKUP"
-
-                                        if [ -n "$OLDEST_BACKUP" ]; then
-                                            rm -f "$OLDEST_BACKUP"
-                                            git rm "$OLDEST_BACKUP"
-                                            git commit -m "Removed oldest backup: $OLDEST_BACKUP"
-                                            git push origin ${TARGET_BRANCH}
-                                        fi
-                                    fi
+                                if [ "$filename" == "$item" ]; then
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.txt"
+                                else
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
                                 fi
+
+                                echo "Backing up $item -> $BACKUP_ITEM"
+                                cp -r "$item" "$BACKUP_ITEM"
+                                git add "$BACKUP_ITEM"
+                                git commit -m "Backup created: $BACKUP_ITEM"
+                                git push origin ${TARGET_BRANCH}
                             else
-                                echo "No existing file found for $file, skipping backup."
+                                echo "No existing file or folder found for $item, skipping backup."
                             fi
                         done < ${FILES_LIST_FILE}
                     '''
@@ -82,23 +70,64 @@ pipeline {
             }
         }
 
-        stage('Copy Files to Target Branch') {
+        stage('Copy Files/Folders to Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
                         git checkout ${TARGET_BRANCH}
 
-                        echo "Copying specific files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        while IFS= read -r file; do
-                            git checkout ${SOURCE_BRANCH} -- "$file"
-                            echo "Setting 777 permissions to $file..."
-                            chmod 777 "$file"
+                        echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                git checkout ${SOURCE_BRANCH} -- "$item"
+                                chmod -R 777 "$item"
+                                git add "$item"
+                                git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                                git push origin ${TARGET_BRANCH}
+                            fi
+                        done < ${FILES_LIST_FILE}
+                    '''
+                }
+            }
+        }
 
-                            echo "Committing changes for $file..."
-                            git add "$file"
-                            git commit -m "Backup (if exists) & Copy: $file from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-                            git push origin ${TARGET_BRANCH}
+        stage('Remove Old Backups (Keep Only 3)') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
+
+                        echo "Cleaning up old backups..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                echo "Checking backups for $item..."
+                                filename="${item%.*}"
+                                extension="${item##*.}"
+                                if [ "$filename" == "$item" ]; then
+                                    BACKUP_PATTERN="${filename}_*.txt"
+                                else
+                                    BACKUP_PATTERN="${filename}_*.${extension}"
+                                fi
+                                BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
+
+                                echo "Found backups: $BACKUP_ITEMS"
+                                BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
+
+                                if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                    DELETE_COUNT=$((BACKUP_COUNT - 3))
+                                    echo "Deleting $DELETE_COUNT old backups..."
+
+                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -f
+                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT")
+                                    git commit -m "Removed old backups, keeping only the latest 3"
+                                    git push origin ${TARGET_BRANCH}
+                                else
+                                    echo "No old backups to delete."
+                                fi
+                            fi
                         done < ${FILES_LIST_FILE}
                     '''
                 }
