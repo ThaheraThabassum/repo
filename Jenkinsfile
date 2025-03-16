@@ -45,18 +45,18 @@ pipeline {
                         echo "Reverting files/folders..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
-                                # Backup current file/folder before replacing it
-                                BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
-                                echo "Backing up $item -> $BACKUP_ITEM"
-                                mv "$item" "$BACKUP_ITEM"
-                                git add "$BACKUP_ITEM"
+                                # Backup the original file/folder
+                                BACKUP_NAME="${item}_rev_${TIMESTAMP}"
+                                echo "Backing up $item -> $BACKUP_NAME"
+                                sudo mv "$item" "$BACKUP_NAME"
+                                git add "$BACKUP_NAME"
 
-                                # Find the latest backup specific to the item
-                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
+                                # Find the latest backup for this item
+                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | head -n 1)
 
                                 if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
                                     echo "Restoring latest backup: $LATEST_BACKUP -> $item"
-                                    mv "$LATEST_BACKUP" "$item"
+                                    sudo mv "$LATEST_BACKUP" "$item"
                                     git add "$item"
                                 else
                                     echo "No valid backup found for $item, skipping restore."
