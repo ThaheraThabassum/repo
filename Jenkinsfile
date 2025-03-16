@@ -1,20 +1,19 @@
 pipeline {
     agent any
-
     environment {
-        SOURCE_BRANCH = "main"
-        TARGET_BRANCH = "automate"
+        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
+        SOURCE_BRANCH = 'main'
+        TARGET_BRANCH = 'automate'
+        SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_deploy.txt"
-        TIMESTAMP = new Date().format("dd_MM_yy_HH_mm_ss")
     }
-
     stages {
         stage('Prepare Repository') {
             steps {
-                sshagent(['git']) {
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         echo "Checking if repository already exists..."
-                        if [ -d repo/.git ]; then
+                        if [ -d "repo/.git" ]; then
                             echo "Repository exists. Fetching latest changes..."
                             cd repo
                             git fetch --all
@@ -24,9 +23,10 @@ pipeline {
                             git pull origin ${SOURCE_BRANCH}
                         else
                             echo "Cloning repository..."
-                            git clone git@github.com:ThaheraThabassum/repo.git repo
+                            git clone ${GIT_REPO} repo
                             cd repo
                             git checkout ${SOURCE_BRANCH}
+                            git pull origin ${SOURCE_BRANCH}
                         fi
                     '''
                 }
@@ -35,11 +35,14 @@ pipeline {
 
         stage('Backup Existing Files/Folders') {
             steps {
-                sshagent(['git']) {
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
-                        git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
+                        git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
+                        git checkout ${SOURCE_BRANCH} -- ${FILES_LIST_FILE}
+
+                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         echo "Creating backups..."
                         while IFS= read -r item || [ -n "$item" ]; do
@@ -47,7 +50,7 @@ pipeline {
                                 filename="${item%.*}"
                                 extension="${item##*.}"
 
-                                if [ "$filename" == "$extension" ]; then
+                                if [ "$filename" == "$item" ]; then
                                     BACKUP_ITEM="${item}_${TIMESTAMP}"
                                 else
                                     BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
@@ -58,8 +61,6 @@ pipeline {
                                 git add "$BACKUP_ITEM"
                                 git commit -m "Backup created: $BACKUP_ITEM"
                                 git push origin ${TARGET_BRANCH}
-                            elif [ -z "$item" ]; then
-                                echo "Skipping empty line in ${FILES_LIST_FILE}"
                             else
                                 echo "No existing file or folder found for $item, skipping backup."
                             fi
@@ -71,7 +72,7 @@ pipeline {
 
         stage('Copy Files/Folders to Target Branch') {
             steps {
-                sshagent(['git']) {
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
                         git checkout ${TARGET_BRANCH}
@@ -84,8 +85,6 @@ pipeline {
                                 git add "$item"
                                 git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                                 git push origin ${TARGET_BRANCH}
-                            else
-                                echo "Skipping empty line in ${FILES_LIST_FILE}"
                             fi
                         done < ${FILES_LIST_FILE}
                     '''
@@ -95,30 +94,30 @@ pipeline {
 
         stage('Remove Old Backups (Keep Only 3)') {
             steps {
-                sshagent(['git']) {
+                sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
-                        echo "Removing old backups, keeping only the last 3..."
+                        git checkout ${TARGET_BRANCH}
 
-                        for dir in $(cat ${FILES_LIST_FILE}); do
-                            ls -t ${dir}_* 2>/dev/null | tail -n +4 | xargs rm -f
-                        done
-
-                        git add .
-                        git commit -m "Removed old backups, keeping only last 3"
-                        git push origin ${TARGET_BRANCH}
+                        echo "Cleaning up old backups..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                BACKUP_ITEMS=$(ls -d ${item}_* 2>/dev/null | sort -t '_' -k 3n,3 -k 2n,2 -k 1n,1 -k 4n,4 -k 5n,5 -k 6n,6)
+                                BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
+                                
+                                if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                    OLDEST_BACKUP=$(echo "$BACKUP_ITEMS" | awk '{print $1}')
+                                    echo "Deleting oldest backup: $OLDEST_BACKUP"
+                                    rm -rf "$OLDEST_BACKUP"
+                                    git rm -r "$OLDEST_BACKUP"
+                                    git commit -m "Removed oldest backup: $OLDEST_BACKUP"
+                                    git push origin ${TARGET_BRANCH}
+                                fi
+                            fi
+                        done < ${FILES_LIST_FILE}
                     '''
                 }
             }
-        }
-    }
-
-    post {
-        failure {
-            echo 'Pipeline failed! Please check the logs for details.'
-        }
-        success {
-            echo 'Pipeline executed successfully!'
         }
     }
 }
