@@ -4,9 +4,9 @@ pipeline {
     environment {
         SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git'
-        SOURCE_BRANCH = 'main' // Branch in the source repo
-        TARGET_BRANCH = 'test' // Branch in the target repo (specified)
-        SSH_KEY = 'jenkins-ssh-key1' // Jenkins credential ID for SSH Key
+        SOURCE_BRANCH = 'main'
+        TARGET_BRANCH = 'test' // Change this to your desired target branch
+        SSH_KEY = 'jenkins-ssh-key1'
     }
 
     stages {
