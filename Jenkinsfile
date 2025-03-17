@@ -45,39 +45,21 @@ pipeline {
                         echo "Reverting files/folders..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
-                                if [ -d "$item" ]; then
-                                    # If item is a folder, backup contents instead of renaming folder
-                                    BACKUP_DIR="${item}_rev_${TIMESTAMP}"
-                                    echo "Backing up folder $item -> $BACKUP_DIR"
-                                    mkdir -p "$BACKUP_DIR"
-                                    cp -r "$item"/* "$BACKUP_DIR" 2>/dev/null || true
-                                    git add "$BACKUP_DIR"
+                                # Backup current file/folder before replacing it
+                                BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
+                                echo "Backing up $item -> $BACKUP_ITEM"
+                                mv "$item" "$BACKUP_ITEM"
+                                git add "$BACKUP_ITEM"
 
-                                    # Restore latest backup
-                                    LATEST_BACKUP_DIR=$(ls -td "${item}_rev_*" 2>/dev/null | grep -E "${item}_rev_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | head -n 1)
-                                    if [ -n "$LATEST_BACKUP_DIR" ] && [ -d "$LATEST_BACKUP_DIR" ]; then
-                                        echo "Restoring latest backup: $LATEST_BACKUP_DIR -> $item/"
-                                        cp -r "$LATEST_BACKUP_DIR"/* "$item/"
-                                        git add "$item"
-                                    else
-                                        echo "No valid backup found for $item, skipping restore."
-                                    fi
+                                # Find the latest backup specific to the item
+                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
+
+                                if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
+                                    echo "Restoring latest backup: $LATEST_BACKUP -> $item"
+                                    mv "$LATEST_BACKUP" "$item"
+                                    git add "$item"
                                 else
-                                    # If item is a file, backup and restore as usual
-                                    BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
-                                    echo "Backing up $item -> $BACKUP_ITEM"
-                                    cp "$item" "$BACKUP_ITEM"
-                                    git add "$BACKUP_ITEM"
-
-                                    # Restore latest backup
-                                    LATEST_BACKUP=$(ls -t ${item}_rev_* 2>/dev/null | grep -E "${item}_rev_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | head -n 1)
-                                    if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
-                                        echo "Restoring latest backup: $LATEST_BACKUP -> $item"
-                                        cp "$LATEST_BACKUP" "$item"
-                                        git add "$item"
-                                    else
-                                        echo "No valid backup found for $item, skipping restore."
-                                    fi
+                                    echo "No valid backup found for $item, skipping restore."
                                 fi
                             else
                                 echo "File/folder $item not found, skipping."
