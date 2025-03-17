@@ -19,6 +19,7 @@ pipeline {
                             cp $SSH_KEY_FILE ~/.ssh/id_rsa
                             chmod 600 ~/.ssh/id_rsa
                             ssh-keyscan github.com >> ~/.ssh/known_hosts
+                            ssh -T git@github.com || true
                         '''
                     }
                 }
@@ -30,7 +31,7 @@ pipeline {
                 script {
                     sh 'rm -rf source-repo'
                     sh "git clone --depth=1 --branch ${SOURCE_BRANCH} ${SOURCE_REPO} source-repo"
-                    sh "ls -l source-repo" // Debug output: list files in source repo
+                    sh "ls -l source-repo"  // Debug output: list files in source repo
                 }
             }
         }
@@ -49,7 +50,7 @@ pipeline {
                             sh "git checkout -b ${TARGET_BRANCH}"
                             sh "touch .gitkeep"
                             sh "git add .gitkeep"
-                            sh "git commit -m 'Initial commit to create branch'"
+                            sh "git commit -m 'Initial commit to create branch' || echo 'No changes to commit'"
                             sh "git push origin ${TARGET_BRANCH}"
                         } else {
                             sh "git checkout ${TARGET_BRANCH}"
@@ -64,13 +65,19 @@ pipeline {
             steps {
                 script {
                     def fileListPath = 'source-repo/file_list.txt'
-                    def filesToCopy = sh(script: "cat ${fileListPath}", returnStdout: true).trim().split("\n")
+                    if (fileExists(fileListPath)) {
+                        def filesToCopy = sh(script: "cat ${fileListPath}", returnStdout: true).trim().split("\n")
 
-                    echo "Contents of file_list.txt: ${filesToCopy}" // Debug output
+                        echo "Contents of file_list.txt: ${filesToCopy}"  // Debug output
 
-                    for (file in filesToCopy) {
-                        echo "Copying source-repo/${file} to target-repo/" // Debug output
-                        sh "cp -r source-repo/${file} target-repo/"
+                        for (file in filesToCopy) {
+                            if (file?.trim()) {
+                                echo "Copying source-repo/${file} to target-repo/"  // Debug output
+                                sh "cp -r source-repo/${file} target-repo/"
+                            }
+                        }
+                    } else {
+                        error "File list file not found: ${fileListPath}"
                     }
                 }
             }
@@ -83,8 +90,14 @@ pipeline {
                         sh "git config user.email 'jenkins@yourdomain.com'"
                         sh "git config user.name 'Jenkins CI'"
                         sh "git add ."
-                        sh "git commit -m 'Syncing files from source to target repo' || echo 'No changes to commit'"
-                        sh "git push origin ${TARGET_BRANCH}"
+
+                        def changes = sh(script: "git status --porcelain", returnStdout: true).trim()
+                        if (changes) {
+                            sh "git commit -m 'Syncing files from source to target repo'"
+                            sh "git push origin ${TARGET_BRANCH}"
+                        } else {
+                            echo "No changes to commit"
+                        }
                     }
                 }
             }
