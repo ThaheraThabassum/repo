@@ -61,12 +61,22 @@ pipeline {
                                 else
                                     echo "No valid backup found for $item, skipping restore."
                                 fi
+
+                                # Cleanup old `_rev_` backups, keeping only the latest 2
+                                echo "Cleaning up old _rev_ backups for $item..."
+                                OLD_BACKUPS=$(ls -td ${item}_rev_* 2>/dev/null | tail -n +3)  # Keep only the latest 2
+                                if [ -n "$OLD_BACKUPS" ]; then
+                                    echo "Deleting old backups: $OLD_BACKUPS"
+                                    rm -rf $OLD_BACKUPS
+                                    git rm -r $OLD_BACKUPS
+                                fi
+
                             else
                                 echo "File/folder $item not found, skipping."
                             fi
                         done < ${FILES_LIST_FILE}
 
-                        git commit -m "Reverted files based on ${FILES_LIST_FILE}"
+                        git commit -m "Reverted files based on ${FILES_LIST_FILE} and cleaned old backups"
                         git push origin ${TARGET_BRANCH}
                     '''
                 }
