@@ -30,6 +30,7 @@ pipeline {
                 script {
                     sh 'rm -rf source-repo'
                     sh "git clone --depth=1 --branch ${SOURCE_BRANCH} ${SOURCE_REPO} source-repo"
+                    sh "ls -l source-repo" // Debug output: list files in source repo
                 }
             }
         }
@@ -65,7 +66,10 @@ pipeline {
                     def fileListPath = 'source-repo/file_list.txt'
                     def filesToCopy = sh(script: "cat ${fileListPath}", returnStdout: true).trim().split("\n")
 
+                    echo "Contents of file_list.txt: ${filesToCopy}" // Debug output
+
                     for (file in filesToCopy) {
+                        echo "Copying source-repo/${file} to target-repo/" // Debug output
                         sh "cp -r source-repo/${file} target-repo/"
                     }
                 }
