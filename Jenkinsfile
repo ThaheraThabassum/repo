@@ -42,7 +42,7 @@ pipeline {
                         echo "Generating SQL dump files on ${REMOTE_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
                             set -e
-                            echo "Logged into ${REMOTE_HOST}"
+                            echo "Successfully logged into ${REMOTE_HOST}"
 
                             cd /home/thahera/
                             echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
@@ -66,6 +66,8 @@ for _, row in df.iterrows():
     table_name = str(row["table"]).strip()
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
+
+    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition}")  # Debug Print
 
     dump_file = f"{table_name}_{timestamp}.sql"
     dump_command = None
@@ -99,10 +101,14 @@ print(f"🕒 Timestamp: {timestamp}")
 EOPYTHON
 EOF
 
-                        echo "Transferring SQL dump files to ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p /home/thahera/"
+                        echo "Transferring generated scripts to ${DEST_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
+                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+
+                        echo "Setting permissions for transferred files..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     """
                 }
             }
@@ -182,7 +188,8 @@ for _, row in databases.iterrows():
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
         subprocess.call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
-
+        print(f"✅ Loaded script: {script_file}")
+        
 EOPYTHON
 EOF
                     """
