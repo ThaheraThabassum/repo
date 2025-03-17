@@ -35,6 +35,79 @@ pipeline {
             }
         }
 
+        stage('Generate and Transfer SQL Dump Files') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh """
+                        echo "Generating SQL dump files on ${REMOTE_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
+                            set -e
+                            echo "Logged into ${REMOTE_HOST}"
+
+                            cd /home/thahera/
+                            echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
+
+                            python3 << EOPYTHON
+import pandas as pd
+import datetime
+import subprocess
+
+excel_file = "${REMOTE_EXCEL_PATH}"
+df = pd.read_excel(excel_file)
+
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "AlgoTeam123"
+
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+script_list = []
+
+for _, row in df.iterrows():
+    db_name = str(row["database"]).strip()
+    table_name = str(row["table"]).strip()
+    option = str(row["option"]).strip().lower()
+    where_condition = str(row.get("where_condition", "")).strip()
+
+    dump_file = f"{table_name}_{timestamp}.sql"
+    dump_command = None
+
+    if option == "data":
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
+        if where_condition and where_condition.lower() != "nan":
+            dump_command += f' --where="{where_condition}"'
+
+    elif option == "structure":
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
+
+    elif option == "both":
+        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
+
+    if dump_command:
+        dump_command += f" > /home/thahera/{dump_file}"
+        try:
+            subprocess.run(dump_command, shell=True, check=True, capture_output=True, text=True)
+            print(f"✅ Dump generated: {dump_file}")
+            script_list.append(dump_file)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error executing dump: {e.stderr}")
+
+with open("${TRANSFERRED_SCRIPTS}", "w") as f:
+    f.write("\\n".join(script_list))
+
+print("✅ Scripts generated successfully.")
+print(f"🕒 Timestamp: {timestamp}")
+
+EOPYTHON
+EOF
+
+                        echo "Transferring SQL dump files to ${DEST_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p /home/thahera/"
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+                    """
+                }
+            }
+        }
+
         stage('Backup, Delete & Load Data') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -73,7 +146,6 @@ for _, row in databases.iterrows():
         continue
 
     if result == "1":
-        # Backup creation
         backup_table = f"{table_name}_{timestamp}"
         create_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} LIKE {db_name}.{table_name};"'
         backup_data = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};"'
@@ -81,7 +153,7 @@ for _, row in databases.iterrows():
         subprocess.call(backup_data, shell=True)
         print(f"✅ Backup created: {backup_table}")
 
-        # Delete older backups (keep only last 3)
+        # Delete old backups, keeping only the last 3
         cleanup_query = f'''
         SELECT table_name FROM information_schema.tables 
         WHERE table_schema='{db_name}' 
