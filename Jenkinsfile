@@ -4,8 +4,7 @@ pipeline {
     environment {
         SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git'
-        SOURCE_BRANCH = 'main'  // Always fetch from the main branch
-        TARGET_BRANCH = 'test'  // Change this to the desired target branch
+        BRANCH_NAME = 'test'  // Specify the branch where files should be transferred
         SSH_KEY = 'jenkins-ssh-key1'  // Jenkins credential ID for SSH Key
     }
 
@@ -29,7 +28,7 @@ pipeline {
             steps {
                 script {
                     sh 'rm -rf source-repo'
-                    sh "git clone --depth=1 --branch ${SOURCE_BRANCH} ${SOURCE_REPO} source-repo"
+                    sh "git clone --depth=1 --branch main ${SOURCE_REPO} source-repo"
                 }
             }
         }
@@ -39,15 +38,16 @@ pipeline {
                 script {
                     sh 'rm -rf target-repo'
                     sh "git clone --depth=1 ${TARGET_REPO} target-repo"
-                    
+
                     dir('target-repo') {
-                        def branchExists = sh(script: "git ls-remote --heads ${TARGET_REPO} ${TARGET_BRANCH} | wc -l", returnStdout: true).trim()
+                        def branchExists = sh(script: "git ls-remote --heads ${TARGET_REPO} ${BRANCH_NAME} | wc -l", returnStdout: true).trim()
                         
-                        if (branchExists == '0') {
-                            error "Target branch ${TARGET_BRANCH} does not exist. Please create it first."
+                        if (branchExists == '1') {
+                            echo "Branch ${BRANCH_NAME} exists. Checking out..."
+                            sh "git checkout ${BRANCH_NAME}"
+                            sh "git pull origin ${BRANCH_NAME}"
                         } else {
-                            sh "git checkout ${TARGET_BRANCH}"
-                            sh "git pull origin ${TARGET_BRANCH}"
+                            error "Branch ${BRANCH_NAME} does not exist. Please create it in the target repository."
                         }
                     }
                 }
@@ -75,7 +75,7 @@ pipeline {
                         sh "git config user.name 'Jenkins CI'"
                         sh "git add ."
                         sh "git commit -m 'Syncing files from source to target repo' || echo 'No changes to commit'"
-                        sh "git push origin ${TARGET_BRANCH}"
+                        sh "git push origin ${BRANCH_NAME}"
                     }
                 }
             }
