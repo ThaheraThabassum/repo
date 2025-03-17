@@ -32,6 +32,9 @@ pipeline {
                     if ! git ls-remote --heads $TARGET_REPO $BRANCH | grep $BRANCH; then
                         echo "Branch $BRANCH does not exist in target repo. Creating..."
                         git checkout -b $BRANCH
+                        touch .gitkeep  # Create an empty file to make an initial commit
+                        git add .gitkeep
+                        git commit -m 'Initial commit to create branch'
                         git push origin $BRANCH
                     else
                         git checkout $BRANCH
