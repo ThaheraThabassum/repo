@@ -54,7 +54,7 @@ pipeline {
                                     git add "$BACKUP_DIR"
 
                                     # Restore latest backup
-                                    LATEST_BACKUP_DIR=$(ls -td ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
+                                    LATEST_BACKUP_DIR=$(ls -td "${item}_rev_*" 2>/dev/null | grep -E "${item}_rev_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | head -n 1)
                                     if [ -n "$LATEST_BACKUP_DIR" ] && [ -d "$LATEST_BACKUP_DIR" ]; then
                                         echo "Restoring latest backup: $LATEST_BACKUP_DIR -> $item/"
                                         cp -r "$LATEST_BACKUP_DIR"/* "$item/"
@@ -70,7 +70,7 @@ pipeline {
                                     git add "$BACKUP_ITEM"
 
                                     # Restore latest backup
-                                    LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
+                                    LATEST_BACKUP=$(ls -t ${item}_rev_* 2>/dev/null | grep -E "${item}_rev_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | head -n 1)
                                     if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
                                         echo "Restoring latest backup: $LATEST_BACKUP -> $item"
                                         cp "$LATEST_BACKUP" "$item"
