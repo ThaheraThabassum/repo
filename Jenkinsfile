@@ -31,7 +31,7 @@ pipeline {
                 script {
                     sh 'rm -rf source-repo'
                     sh "git clone --depth=1 --branch ${SOURCE_BRANCH} ${SOURCE_REPO} source-repo"
-                    sh "ls -l source-repo"  // Debug output: list files in source repo
+                    sh "ls -l source-repo"  // Debug: List source repo contents
                 }
             }
         }
@@ -40,19 +40,19 @@ pipeline {
             steps {
                 script {
                     sh 'rm -rf target-repo'
-                    sh "git clone --depth=1 ${TARGET_REPO} target-repo || true"
+                    sh "git clone ${TARGET_REPO} target-repo"
 
                     dir('target-repo') {
-                        def branchExists = sh(script: "git ls-remote --heads ${TARGET_REPO} ${TARGET_BRANCH} | wc -l", returnStdout: true).trim()
+                        sh "git fetch --all"
+
+                        def branchExists = sh(script: "git ls-remote --heads origin ${TARGET_BRANCH} | wc -l", returnStdout: true).trim()
 
                         if (branchExists == '0') {
-                            echo "Branch ${TARGET_BRANCH} does not exist in target repo. Creating..."
+                            echo "Branch ${TARGET_BRANCH} does not exist. Creating it..."
                             sh "git checkout -b ${TARGET_BRANCH}"
-                            sh "touch .gitkeep"
-                            sh "git add .gitkeep"
-                            sh "git commit -m 'Initial commit to create branch' || echo 'No changes to commit'"
                             sh "git push origin ${TARGET_BRANCH}"
                         } else {
+                            echo "Branch ${TARGET_BRANCH} exists. Checking it out..."
                             sh "git checkout ${TARGET_BRANCH}"
                             sh "git pull origin ${TARGET_BRANCH}"
                         }
@@ -68,11 +68,11 @@ pipeline {
                     if (fileExists(fileListPath)) {
                         def filesToCopy = sh(script: "cat ${fileListPath}", returnStdout: true).trim().split("\n")
 
-                        echo "Contents of file_list.txt: ${filesToCopy}"  // Debug output
+                        echo "Contents of file_list.txt: ${filesToCopy}"
 
                         for (file in filesToCopy) {
                             if (file?.trim()) {
-                                echo "Copying source-repo/${file} to target-repo/"  // Debug output
+                                echo "Copying source-repo/${file} to target-repo/"
                                 sh "cp -r source-repo/${file} target-repo/"
                             }
                         }
