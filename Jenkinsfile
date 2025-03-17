@@ -5,7 +5,7 @@ pipeline {
         SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git'
         SOURCE_BRANCH = 'main'  // Branch in the source repo
-        TARGET_BRANCH = 'test'  // Branch in the target repo
+        TARGET_BRANCH = 'test'  // Change this to the actual branch you need
         SSH_KEY = 'jenkins-ssh-key1'  // Jenkins credential ID for SSH Key
     }
 
@@ -48,6 +48,7 @@ pipeline {
                             sh "git checkout -b ${TARGET_BRANCH}"
                             sh "git push origin ${TARGET_BRANCH}"
                         } else {
+                            echo "Branch ${TARGET_BRANCH} exists. Checking it out..."
                             sh "git checkout ${TARGET_BRANCH}"
                             sh "git pull origin ${TARGET_BRANCH}"
                         }
