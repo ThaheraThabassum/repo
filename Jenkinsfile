@@ -16,16 +16,16 @@ pipeline {
                             echo "Repository exists. Fetching latest changes..."
                             cd repo
                             git fetch --all
-                            git reset --hard
+                            git reset --hard origin/${TARGET_BRANCH}
                             git clean -fd
                             git checkout ${TARGET_BRANCH}
-                            git pull origin ${TARGET_BRANCH}
+                            git pull --rebase=false origin ${TARGET_BRANCH}  # FIX: Ensures proper merge
                         else
                             echo "Cloning repository..."
                             git clone ${GIT_REPO} repo
                             cd repo
                             git checkout ${TARGET_BRANCH}
-                            git pull origin ${TARGET_BRANCH}
+                            git pull --rebase=false origin ${TARGET_BRANCH}  # FIX: Ensures proper merge
                         fi
                     '''
                 }
@@ -38,20 +38,18 @@ pipeline {
                     sh '''
                         cd repo
                         git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
+                        git pull --rebase=false origin ${TARGET_BRANCH}
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         echo "Reverting files/folders..."
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
-                                # Backup current file/folder before replacing it
                                 BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
                                 echo "Backing up $item -> $BACKUP_ITEM"
                                 mv "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
 
-                                # Find the latest valid backup, ensuring correct sorting
                                 LATEST_BACKUP=$(ls -td ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | sort -r | head -n 1)
 
                                 if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
@@ -64,7 +62,7 @@ pipeline {
 
                                 # Cleanup old `_rev_` backups, keeping only the latest 2
                                 echo "Cleaning up old _rev_ backups for $item..."
-                                OLD_BACKUPS=$(ls -td ${item}_rev_* 2>/dev/null | tail -n +3)  # Keep only the latest 2
+                                OLD_BACKUPS=$(ls -td ${item}_rev_* 2>/dev/null | tail -n +3)
                                 if [ -n "$OLD_BACKUPS" ]; then
                                     echo "Deleting old backups: $OLD_BACKUPS"
                                     rm -rf $OLD_BACKUPS
