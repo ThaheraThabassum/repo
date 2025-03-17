@@ -83,8 +83,15 @@ for index, row in df.iterrows():
 
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
-        subprocess.run(dump_command, shell=True, check=True)
-        script_list.append(dump_file)
+        
+        print(f"🟢 Running Command: {dump_command}")  # DEBUG PRINT
+
+        try:
+            result = subprocess.run(dump_command, shell=True, check=True, capture_output=True, text=True)
+            print(f"✅ Dump generated: {dump_file}")
+            script_list.append(dump_file)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error executing dump: {e.stderr}")
 
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
     f.write("\\n".join(script_list))
