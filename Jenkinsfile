@@ -39,13 +39,11 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Connecting to ${REMOTE_HOST} to generate scripts..."
+                        echo "Generating SQL dumps on ${REMOTE_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<'EOF'
 
-                        echo "Successfully logged in!"
-                        cd /home/thahera/
-
-                        echo '${SUDO_PASSWORD}' | sudo -S apt install python3-pandas python3-openpyxl -y
+                        echo "Installing required Python packages..."
+                        echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
 
                         python3 <<EOPYTHON
 import pandas as pd
@@ -65,7 +63,7 @@ script_list = []
 for index, row in df.iterrows():
     db_name = str(row["database"]).strip()
     table_name = str(row["table"]).strip()
-    option = str(row["option"]).strip().lower()  
+    option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
 
     print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition}")
@@ -87,11 +85,10 @@ for index, row in df.iterrows():
 
     if dump_command:
         dump_command += f" > /home/thahera/{dump_file}"
-        
         print(f"🟢 Running Command: {dump_command}")
 
         try:
-            result = subprocess.run(dump_command, shell=True, check=True, capture_output=True, text=True)
+            subprocess.run(dump_command, shell=True, check=True, capture_output=True, text=True)
             print(f"✅ Dump generated: {dump_file}")
             script_list.append(dump_file)
         except subprocess.CalledProcessError as e:
@@ -105,7 +102,6 @@ print(f"🕒 Timestamp used: {timestamp}")
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
@@ -119,7 +115,6 @@ EOPYTHON
                         echo "Transferring generated scripts to ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
                         scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
-
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
                         echo "Setting permissions for transferred files..."
@@ -155,7 +150,6 @@ for index, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
     option = str(row["option"]).strip().lower()
-    where_condition = str(row.get("where_condition", "")).strip()
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
 
@@ -183,7 +177,6 @@ for index, row in databases.iterrows():
 
 EOPYTHON
 
-                        logout
                         EOF
                     """
                 }
