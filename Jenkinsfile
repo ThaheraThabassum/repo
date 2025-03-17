@@ -4,19 +4,23 @@ pipeline {
     environment {
         SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git'
-        BRANCH_NAME = 'test'  // Target branch to checkout
+        SOURCE_BRANCH = 'main'  // Source repo branch
+        TARGET_BRANCH = 'specified-branch'  // Target repo branch
+        SSH_KEY = 'jenkins-ssh-key1'  // Jenkins credential ID for SSH Key
     }
 
     stages {
         stage('Setup SSH Key') {
             steps {
                 script {
-                    sh '''
-                        mkdir -p /var/lib/jenkins/.ssh
-                        cp $SSH_KEY_FILE /var/lib/jenkins/.ssh/id_rsa
-                        chmod 600 /var/lib/jenkins/.ssh/id_rsa
-                        ssh-keyscan github.com >> /var/lib/jenkins/.ssh/known_hosts
-                    '''
+                    withCredentials([sshUserPrivateKey(credentialsId: SSH_KEY, keyFileVariable: 'SSH_KEY_FILE')]) {
+                        sh '''
+                        mkdir -p ~/.ssh
+                        cp $SSH_KEY_FILE ~/.ssh/id_rsa
+                        chmod 600 ~/.ssh/id_rsa
+                        ssh-keyscan github.com >> ~/.ssh/known_hosts
+                        '''
+                    }
                 }
             }
         }
@@ -24,31 +28,21 @@ pipeline {
         stage('Checkout Source Repo') {
             steps {
                 script {
-                    sh '''
-                        rm -rf source-repo
-                        git clone --depth=1 --branch main ${SOURCE_REPO} source-repo
-                    '''
+                    sh 'rm -rf source-repo'
+                    sh "git clone --depth=1 --branch ${SOURCE_BRANCH} ${SOURCE_REPO} source-repo"
                 }
             }
         }
 
-        stage('Checkout Target Repo') {
+        stage('Prepare Target Repo') {
             steps {
                 script {
                     sh 'rm -rf target-repo'
                     sh "git clone --depth=1 ${TARGET_REPO} target-repo"
 
                     dir('target-repo') {
-                        def branchExists = sh(script: "git ls-remote --heads ${TARGET_REPO} ${BRANCH_NAME} | wc -l", returnStdout: true).trim()
-
-                        if (branchExists == '1') {
-                            echo "Branch ${BRANCH_NAME} exists. Checking out..."
-                            sh "git fetch origin ${BRANCH_NAME}"
-                            sh "git checkout -b ${BRANCH_NAME} origin/${BRANCH_NAME}"
-                            sh "git pull origin ${BRANCH_NAME}"
-                        } else {
-                            error "Branch ${BRANCH_NAME} does not exist. Please create it in the target repository."
-                        }
+                        sh "git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}"
+                        sh "git pull origin ${TARGET_BRANCH}"
                     }
                 }
             }
@@ -57,9 +51,12 @@ pipeline {
         stage('Read File List & Copy Files') {
             steps {
                 script {
-                    sh '''
-                        cp -r source-repo/* target-repo/
-                    '''
+                    def fileListPath = 'source-repo/file_list.txt'
+                    def filesToCopy = sh(script: "cat ${fileListPath}", returnStdout: true).trim().split("\n")
+
+                    for (file in filesToCopy) {
+                        sh "cp -r source-repo/${file} target-repo/"
+                    }
                 }
             }
         }
@@ -68,11 +65,11 @@ pipeline {
             steps {
                 script {
                     dir('target-repo') {
-                        sh '''
-                            git add .
-                            git commit -m "Sync files from source repo"
-                            git push origin ${BRANCH_NAME}
-                        '''
+                        sh "git config user.email 'jenkins@yourdomain.com'"
+                        sh "git config user.name 'Jenkins CI'"
+                        sh "git add ."
+                        sh "git commit -m 'Syncing files from source to target repo' || echo 'No changes to commit'"
+                        sh "git push origin ${TARGET_BRANCH}"
                     }
                 }
             }
@@ -81,7 +78,7 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline executed successfully!"
+            echo "Pipeline completed successfully!"
         }
         failure {
             echo "Pipeline failed. Please check logs."
