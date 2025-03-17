@@ -2,20 +2,20 @@ pipeline {
     agent any
 
     environment {
+        GIT_CREDENTIALS_ID = 'your-git-credentials-id' // Update with Jenkins credentials ID
         SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git'
-        BRANCH = 'main'  // Change this if needed
-        FILE_LIST = 'file_list.txt'  // The text file containing file/folder names
+        BRANCH_NAME = 'main'
     }
 
     stages {
         stage('Checkout Source Repo') {
             steps {
                 script {
-                    sh """
+                    sh '''
                     rm -rf source-repo
-                    git clone --depth=1 --branch $BRANCH $SOURCE_REPO source-repo
-                    """
+                    git clone --depth=1 --branch $BRANCH_NAME $SOURCE_REPO source-repo
+                    '''
                 }
             }
         }
@@ -23,24 +23,20 @@ pipeline {
         stage('Prepare Target Repo') {
             steps {
                 script {
-                    sh """
+                    sh '''
                     rm -rf target-repo
-                    git clone --depth=1 $TARGET_REPO target-repo || exit 1
-                    cd target-repo
-                    
-                    # Check if branch exists in remote
-                    if ! git ls-remote --heads $TARGET_REPO $BRANCH | grep $BRANCH; then
-                        echo "Branch $BRANCH does not exist in target repo. Creating..."
-                        git checkout -b $BRANCH
-                        touch .gitkeep  # Create an empty file to make an initial commit
+                    git clone --depth=1 $TARGET_REPO target-repo || {
+                        echo "Target repo is empty. Initializing..."
+                        git init target-repo
+                        cd target-repo
+                        git checkout -b $BRANCH_NAME
+                        touch .gitkeep
                         git add .gitkeep
-                        git commit -m 'Initial commit to create branch'
-                        git push origin $BRANCH
-                    else
-                        git checkout $BRANCH
-                        git pull origin $BRANCH
-                    fi
-                    """
+                        git commit -m "Initial commit to create branch"
+                        git remote add origin $TARGET_REPO
+                        git push origin $BRANCH_NAME
+                    }
+                    '''
                 }
             }
         }
@@ -48,21 +44,10 @@ pipeline {
         stage('Copy Specific Files/Folders') {
             steps {
                 script {
-                    sh """
-                    cd source-repo
-                    if [ ! -f $FILE_LIST ]; then
-                        echo "Error: $FILE_LIST not found in the source repo!"
-                        exit 1
-                    fi
-
-                    while IFS= read -r file; do
-                        if [ -e "$file" ]; then
-                            cp -r "$file" ../target-repo/
-                        else
-                            echo "Warning: $file not found in source repo!"
-                        fi
-                    done < $FILE_LIST
-                    """
+                    def filesToCopy = ['file1.txt', 'file2.txt', 'folder1'] // Modify as needed
+                    for (file in filesToCopy) {
+                        sh "cp -r source-repo/${file} target-repo/ || echo 'Skipping missing file: ${file}'"
+                    }
                 }
             }
         }
@@ -70,14 +55,23 @@ pipeline {
         stage('Commit & Push to Target Repo') {
             steps {
                 script {
-                    sh """
+                    sh '''
                     cd target-repo
                     git add .
-                    git commit -m 'Transferred specified files from repo to testing on branch $BRANCH' || echo "No changes to commit"
-                    git push origin $BRANCH
-                    """
+                    git commit -m "Sync files from source repo"
+                    git push origin $BRANCH_NAME
+                    '''
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline executed successfully!"
+        }
+        failure {
+            echo "Pipeline failed. Check logs for errors."
         }
     }
 }
