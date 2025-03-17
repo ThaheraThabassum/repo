@@ -4,8 +4,8 @@ pipeline {
     environment {
         SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git'
-        SOURCE_BRANCH = 'main'  // Source repo branch
-        TARGET_BRANCH = 'specified-branch'  // Target repo branch
+        SOURCE_BRANCH = 'main'  // Branch in the source repo
+        TARGET_BRANCH = 'test'  // Branch in the target repo
         SSH_KEY = 'jenkins-ssh-key1'  // Jenkins credential ID for SSH Key
     }
 
@@ -41,8 +41,16 @@ pipeline {
                     sh "git clone --depth=1 ${TARGET_REPO} target-repo"
 
                     dir('target-repo') {
-                        sh "git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}"
-                        sh "git pull origin ${TARGET_BRANCH}"
+                        def branchExists = sh(script: "git ls-remote --heads ${TARGET_REPO} ${TARGET_BRANCH} | wc -l", returnStdout: true).trim()
+
+                        if (branchExists == '0') {
+                            echo "Branch ${TARGET_BRANCH} does not exist in target repo. Creating and pushing it..."
+                            sh "git checkout -b ${TARGET_BRANCH}"
+                            sh "git push origin ${TARGET_BRANCH}"
+                        } else {
+                            sh "git checkout ${TARGET_BRANCH}"
+                            sh "git pull origin ${TARGET_BRANCH}"
+                        }
                     }
                 }
             }
