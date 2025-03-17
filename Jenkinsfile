@@ -52,7 +52,7 @@ pipeline {
                                 git add "$BACKUP_ITEM"
 
                                 # Find the latest backup specific to the item
-                                LATEST_BACKUP=$(ls -td ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
+                                LATEST_BACKUP=$(ls -td "${item}_"* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
 
                                 if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
                                     echo "Restoring latest backup: $LATEST_BACKUP -> $item"
