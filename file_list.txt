@@ -1,2 +1,1 @@
-transferred_scripts.txt
-project1
+new_testing
