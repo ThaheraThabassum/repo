@@ -5,7 +5,7 @@ pipeline {
         SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git'
         SOURCE_BRANCH = 'main'
-        TARGET_BRANCH = 'destination-branch'
+        TARGET_BRANCH = 'main'
         SSH_KEY = 'jenkins-ssh-key1'
     }
 
