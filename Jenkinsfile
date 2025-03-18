@@ -29,7 +29,9 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "Uploading Excel file to remote server..."
+                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                         scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
+                        
                     """
                 }
             }
