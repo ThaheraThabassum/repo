@@ -181,7 +181,7 @@ for _, row in databases.iterrows():
             print(f"⚠️ No old backups found or error occurred: {e}")
 
     if option == "data":
-        delete_query = f"DELETE FROM {db_name}.{table_name}" if not where_condition else f"DELETE FROM {db_name}.{table_name} WHERE {where_condition}"
+        delete_query = f"DELETE FROM {db_name}.{table_name}" if not where_condition or where_condition.lower() == "nan" else f"DELETE FROM {db_name}.{table_name} WHERE {where_condition}"
         subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{delete_query}"', shell=True)
 
     elif option == "structure":
