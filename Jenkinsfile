@@ -80,6 +80,9 @@ for _, row in df.iterrows():
     table_name = str(row["table"]).strip()
     option = str(row["option"]).strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
+    columns_to_add = str(row.get("columns_need_to_add", "")).strip()
+    datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
+
 
     print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition}")  # Debug Print
 
