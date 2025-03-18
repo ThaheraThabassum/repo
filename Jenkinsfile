@@ -24,7 +24,18 @@ pipeline {
             }
         }
 
-    
+        stage('Pull Latest Changes') {
+            steps {
+                script {
+                    echo "Pulling latest changes from Git..."
+                    sh """
+                        git reset --hard
+                        git clean -fd
+                        git pull origin main  # Change 'main' if using a different branch
+                    """
+                }
+            }
+        }    
         stage('Upload Excel to Remote Server') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
