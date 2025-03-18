@@ -158,6 +158,8 @@ for _, row in databases.iterrows():
     table_name = row["table"]
     option = row["option"].strip().lower()
     where_condition = str(row.get("where_condition", "")).strip()
+    columns_to_add = str(row.get("columns_need_to_add", "")).strip()
+    datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
     check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
