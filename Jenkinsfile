@@ -16,9 +16,9 @@ pipeline {
 
         FILES_LIST_FILE = "files_to_deploy.txt"
 
-        SOURCE_REPO_DIR = 'source-repo' // Directory to clone source repo
+        SOURCE_REPO_DIR = 'repo' // Directory to clone source repo
 
-        TARGET_REPO_DIR = 'target-repo' // Directory to clone target repo
+        TARGET_REPO_DIR = 'testing' // Directory to clone target repo
 
     }
 
