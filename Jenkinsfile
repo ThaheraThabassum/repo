@@ -1,268 +1,135 @@
 pipeline {
     agent any
-
     environment {
-        SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
-        REMOTE_USER = 'thahera'
-        REMOTE_HOST = '3.111.252.210'
-        DEST_HOST = '43.205.56.101'
-        LOCAL_EXCEL_FILE = "db_config.xlsx"
-        REMOTE_EXCEL_PATH = "/home/thahera/db_config.xlsx"
-        MYSQL_USER = "root"
-        MYSQL_PASSWORD = "AlgoTeam123"
-        SUDO_PASSWORD = "1234"
-        TRANSFERRED_SCRIPTS = "/home/thahera/transferred_scripts.txt"
+        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
+        SOURCE_BRANCH = 'main'
+        TARGET_BRANCH = 'automate'
+        SSH_KEY = 'jenkins-ssh-key1'
+        FILES_LIST_FILE = "files_to_deploy.txt"
     }
-
     stages {
-        stage('Checkout Main Branch') {
+        stage('Prepare Repository') {
             steps {
-                script {
-                    echo "Checking out main branch..."
-                    sh 'git checkout main'
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        echo "Checking if repository already exists..."
+                        if [ -d "repo/.git" ]; then
+                            echo "Repository exists. Fetching latest changes..."
+                            cd repo
+                            git fetch --all
+                            git reset --hard
+                            git clean -fd
+                            git checkout ${SOURCE_BRANCH}
+                            git pull origin ${SOURCE_BRANCH}
+                        else
+                            echo "Cloning repository..."
+                            git clone ${GIT_REPO} repo
+                            cd repo
+                            git checkout ${SOURCE_BRANCH}
+                            git pull origin ${SOURCE_BRANCH}
+                        fi
+                    '''
                 }
             }
         }
 
-        stage('Pull Latest Changes') {
-            steps {
-                script {
-                    echo "Pulling latest changes from Git..."
-                    sh """
-                        git reset --hard
-                        git clean -fd
-                        git pull origin main  # Change 'main' if using a different branch
-                    """
-                }
-            }
-        }    
-        stage('Upload Excel to Remote Server') {
+        stage('Backup Existing Files/Folders') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        echo "Uploading Excel file to remote server..."
-                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
-                        scp -o StrictHostKeyChecking=no ${WORKSPACE}/${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
-                        
-                    """
-                }
-            }
-        }
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
+                        git checkout ${SOURCE_BRANCH} -- ${FILES_LIST_FILE}
 
-        stage('Generate and Transfer SQL Dump Files') {
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        echo "Generating SQL dump files on ${REMOTE_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
-                            set -e
-                            echo "Successfully logged into ${REMOTE_HOST}"
+                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-                            cd /home/thahera/
-                            echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
+                        echo "Creating backups..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ] && [ -e "$item" ]; then
+                                if [[ "$item" == *.* ]]; then
+                                    filename="${item%.*}"
+                                    extension="${item##*.}"
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
+                                else
+                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                fi
 
-                            python3 << EOPYTHON
-import pandas as pd
-import datetime
-import subprocess
-
-excel_file = "${REMOTE_EXCEL_PATH}"
-df = pd.read_excel(excel_file)
-
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "AlgoTeam123"
-
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
-script_list = []
-
-for _, row in df.iterrows():
-    db_name = str(row["database"]).strip()
-    table_name = str(row["table"]).strip()
-    option = str(row["option"]).strip().lower()
-    where_condition = str(row.get("where_condition", "")).strip()
-    columns_to_add = str(row.get("columns_need_to_add", "")).strip()
-    datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
-    revert = str(row.get("revert", "")).strip().lower()
-
-
-    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes} | revert: {revert}")  # Debug Print
-
-    dump_file = f"{table_name}_{timestamp}.sql"
-    dump_command = None
-
-    if option == "data":
-        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-create-info {db_name} {table_name}"
-        if where_condition and where_condition.lower() != "nan":
-            dump_command += f' --where="{where_condition}"'
-
-    elif option == "structure":
-        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' --no-data {db_name} {table_name}"
-
-    elif option == "both":
-        dump_command = f"mysqldump -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} {table_name}"
-
-    if dump_command:
-        dump_command += f" > /home/thahera/{dump_file}"
-        try:
-            subprocess.run(dump_command, shell=True, check=True, capture_output=True, text=True)
-            print(f"✅ Dump generated: {dump_file}")
-            script_list.append(dump_file)
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error executing dump: {e.stderr}")
-
-with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\\n".join(script_list))
-
-print("✅ Scripts generated successfully.")
-print(f"🕒 Timestamp: {timestamp}")
-
-EOPYTHON
-EOF
-
-                        echo "Transferring generated scripts to ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cat ${TRANSFERRED_SCRIPTS}' > transferred_scripts.txt
-                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
-
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
-
-                        echo "Setting permissions for transferred files..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
-                    """
+                                echo "Backing up $item -> $BACKUP_ITEM"
+                                cp -r "$item" "$BACKUP_ITEM"
+                                git add "$BACKUP_ITEM"
+                                git commit -m "Backup created: $BACKUP_ITEM"
+                                git push origin ${TARGET_BRANCH}
+                            else
+                                echo "No existing file or folder found for $item, skipping backup."
+                            fi
+                        done < ${FILES_LIST_FILE}
+                    '''
                 }
             }
         }
 
-        stage('Backup, Delete & Load Data') {
+        stage('Copy Files/Folders to Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        echo "Processing tables on ${DEST_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
-                            set -e
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH}
 
-                            python3 << EOPYTHON
-import pandas as pd
-import datetime
-import subprocess
-import numpy as np
+                        echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                git checkout ${SOURCE_BRANCH} -- "$item"
+                                chmod -R 777 "$item"
+                                git add "$item"
+                                git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                                git push origin ${TARGET_BRANCH}
+                            fi
+                        done < ${FILES_LIST_FILE}
+                    '''
+                }
+            }
+        }
 
-databases = pd.read_excel("${REMOTE_EXCEL_PATH}") # Corrected line
+        stage('Remove Old Backups (Keep Only 3)') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
 
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "AlgoTeam123"
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+                        echo "Cleaning up old backups..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                echo "Checking backups for $item..."
+                                if [[ "$item" == *.* ]]; then
+                                    filename="${item%.*}"
+                                    extension="${item##*.}"
+                                    BACKUP_PATTERN="${filename}_*"
+                                else
+                                    BACKUP_PATTERN="${item}_*"
+                                fi
 
-with open("${TRANSFERRED_SCRIPTS}", "r") as f:
-    script_files = [line.strip() for line in f.readlines()]
+                                BACKUP_ITEMS=$(ls -d ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
 
-for _, row in databases.iterrows():
-    db_name = row["database"]
-    table_name = row["table"]
-    option = row["option"]
-    if isinstance(option, str): #Check if its a String
-        option = option.strip().lower() #Strip only if it is a string
-    else:
-        option = str(option).lower() #Convert to string and lower if not a string.
-        if option == 'nan':
-            option = '' #Set to empty string if its nan.
-    where_condition = str(row.get("where_condition", "")).strip()
-    columns_to_add = str(row.get("columns_need_to_add", "")).strip()
-    datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
-    revert = str(row.get("revert", "")).strip().lower()
+                                echo "Found backups: $BACKUP_ITEMS"
+                                BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
 
-    if revert == "yes":
-        print(f"🔄 Reverting table: {table_name} in database: {db_name}")
-        
-        renamed_table = f"{table_name}_rev_{timestamp}"
-        rename_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "RENAME TABLE {db_name}.{table_name} TO {db_name}.{renamed_table};"'
-        subprocess.call(rename_command, shell=True)
-        print(f"✅ Renamed {table_name} to {renamed_table}")
-        
-        find_backup_query = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name LIKE '{table_name}_%' AND table_name NOT LIKE '%_rev_%' ORDER BY table_name DESC LIMIT 1;"
+                                if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                    DELETE_COUNT=$((BACKUP_COUNT - 3))
+                                    echo "Deleting $DELETE_COUNT old backups..."
 
-        find_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{find_backup_query}"'
-
-        try:
-            latest_backup = subprocess.check_output(find_backup_command, shell=True).decode().strip()
-            if latest_backup:
-                restore_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "RENAME TABLE {db_name}.{latest_backup} TO {db_name}.{table_name};"'
-                subprocess.call(restore_command, shell=True)
-                print(f"✅ Restored latest backup {latest_backup} as {table_name}")
-            else:
-                print(f"⚠️ No backups found for {table_name}, revert skipped.")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error finding latest backup: {e}")
-            continue
-        continue
-        
-    check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
-    check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
-
-    try:
-        result = subprocess.check_output(check_command, shell=True).decode().strip()
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Error checking table: {e}")
-        continue
-
-    if result == "1":
-        backup_table = f"{table_name}_{timestamp}"
-        create_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "CREATE TABLE {db_name}.{backup_table} LIKE {db_name}.{table_name};"'
-        backup_data = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "INSERT INTO {db_name}.{backup_table} SELECT * FROM {db_name}.{table_name};"'
-        subprocess.call(create_backup, shell=True)
-        subprocess.call(backup_data, shell=True)
-        print(f"✅ Backup created: {backup_table}")
-
-        # Delete old backups, keeping only the last 3
-        cleanup_query = f'''
-        SELECT table_name FROM information_schema.tables 
-        WHERE table_schema='{db_name}' 
-        AND table_name LIKE '{table_name}_%' 
-        ORDER BY table_name DESC LIMIT 3, 100;
-        '''
-        cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
-        
-        try:
-            old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\\n")
-            for backup in old_backups:
-                if backup:
-                    delete_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{backup};"'
-                    subprocess.call(delete_backup, shell=True)
-                    print(f"🗑 Deleted old backup: {backup}")
-        except subprocess.CalledProcessError as e:
-            print(f"⚠️ No old backups found or error occurred: {e}")
-    
-    # Add new columns if specified
-    if columns_to_add and columns_to_add.lower() != "nan":
-        columns = [col.strip() for col in columns_to_add.split(",")]
-        for column in columns:
-            add_column_query = f'ALTER TABLE {db_name}.{table_name} ADD COLUMN {column};'
-            subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{add_column_query}"', shell=True)
-            print(f"✅ Column added: {column}")
-
-    # Modify column data types if specified
-    if datatype_changes and datatype_changes.lower() != "nan":
-        datatype_changes_list = [change.strip() for change in datatype_changes.split(",")]
-        for change in datatype_changes_list:
-            modify_column_query = f'ALTER TABLE {db_name}.{table_name} MODIFY COLUMN {change};'
-            subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{modify_column_query}"', shell=True)
-            print(f"✅ Column datatype modified: {change}")
-
-    
-    if option == "data":
-        delete_query = f"DELETE FROM {db_name}.{table_name}" if not where_condition or where_condition.lower() == "nan" else f"DELETE FROM {db_name}.{table_name} WHERE {where_condition}"
-        subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{delete_query}"', shell=True)
-
-    elif option == "structure":
-        subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{table_name};"', shell=True)
-
-    script_file = next((s for s in script_files if s.startswith(table_name)), None)
-    if script_file:
-        subprocess.call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
-        print(f"✅ Loaded script: {script_file}")
-        
-EOPYTHON
-EOF
-                    """
+                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -rf
+                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT") 2>/dev/null
+                                    git commit -m "Removed old backups, keeping only the latest 3"
+                                    git push origin ${TARGET_BRANCH}
+                                else
+                                    echo "No old backups to delete."
+                                fi
+                            fi
+                        done < ${FILES_LIST_FILE}
+                    '''
                 }
             }
         }
