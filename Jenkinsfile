@@ -178,11 +178,12 @@ for _, row in databases.iterrows():
         subprocess.call(rename_command, shell=True)
         print(f"✅ Renamed {table_name} to {renamed_table}")
         
-        find_backup_query = f"""
-        SELECT table_name FROM information_schema.tables 
-        WHERE table_schema='{db_name}' AND table_name LIKE '{table_name}_%' 
-        ORDER BY table_name DESC LIMIT 1;
-        """
+        find_backup_query = """
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema='{db_name}' AND table_name LIKE '{table_name}_%' 
+            ORDER BY table_name DESC LIMIT 1;
+        """.format(db_name=db_name, table_name=table_name)
+
         find_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{find_backup_query}"'
         
         try:
