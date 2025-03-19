@@ -82,9 +82,10 @@ for _, row in df.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
     columns_to_add = str(row.get("columns_need_to_add", "")).strip()
     datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
+    revert = str(row.get("revert", "")).strip().lower()
 
 
-    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes}")  # Debug Print
+    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes} | revert: {revert}")  # Debug Print
 
     dump_file = f"{table_name}_{timestamp}.sql"
     dump_command = None
@@ -167,6 +168,34 @@ for _, row in databases.iterrows():
     where_condition = str(row.get("where_condition", "")).strip()
     columns_to_add = str(row.get("columns_need_to_add", "")).strip()
     datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
+    revert = str(row.get("revert", "")).strip().lower()
+
+    if revert == "yes":
+        print(f"🔄 Reverting table: {table_name} in database: {db_name}")
+        
+        renamed_table = f"{table_name}_rev_{timestamp}"
+        rename_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "RENAME TABLE {db_name}.{table_name} TO {db_name}.{renamed_table};"'
+        subprocess.call(rename_command, shell=True)
+        print(f"✅ Renamed {table_name} to {renamed_table}")
+        
+        find_backup_query = f"""
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema='{db_name}' AND table_name LIKE '{table_name}_%' 
+        ORDER BY table_name DESC LIMIT 1;
+        """
+        find_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{find_backup_query}"'
+        
+        try:
+            latest_backup = subprocess.check_output(find_backup_command, shell=True).decode().strip()
+            if latest_backup:
+                restore_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "RENAME TABLE {db_name}.{latest_backup} TO {db_name}.{table_name};"'
+                subprocess.call(restore_command, shell=True)
+                print(f"✅ Restored latest backup {latest_backup} as {table_name}")
+            else:
+                print(f"⚠️ No backups found for {table_name}, revert skipped.")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error finding latest backup: {e}")
+            continue
 
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
     check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
