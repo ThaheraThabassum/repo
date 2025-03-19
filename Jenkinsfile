@@ -178,7 +178,7 @@ for _, row in databases.iterrows():
         subprocess.call(rename_command, shell=True)
         print(f"✅ Renamed {table_name} to {renamed_table}")
         
-        find_backup_query = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name LIKE '{table_name}_%' ORDER BY table_name DESC LIMIT 1;"
+        find_backup_query = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name LIKE '{table_name}_%' AND table_name NOT LIKE '%_rev_%' ORDER BY table_name DESC LIMIT 1;"
 
         find_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{find_backup_query}"'
 
@@ -193,7 +193,8 @@ for _, row in databases.iterrows():
         except subprocess.CalledProcessError as e:
             print(f"❌ Error finding latest backup: {e}")
             continue
-
+        continue
+        
     check_query = f"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}';"
     check_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check_query}"'
 
