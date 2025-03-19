@@ -31,7 +31,7 @@ pipeline {
                     sh """
                         git reset --hard
                         git clean -fd
-                        git pull origin main  # Change 'main' if using a different branch
+                        git pull origin kotak_db  # Change 'main' if using a different branch
                     """
                 }
             }
