@@ -84,7 +84,7 @@ for _, row in df.iterrows():
     datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
 
 
-    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition}")  # Debug Print
+    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes}")  # Debug Print
 
     dump_file = f"{table_name}_{timestamp}.sql"
     dump_command = None
@@ -143,6 +143,7 @@ EOF
 import pandas as pd
 import datetime
 import subprocess
+import numpy as np
 
 databases = pd.read_excel("${REMOTE_EXCEL_PATH}")
 
@@ -156,7 +157,13 @@ with open("${TRANSFERRED_SCRIPTS}", "r") as f:
 for _, row in databases.iterrows():
     db_name = row["database"]
     table_name = row["table"]
-    option = row["option"].strip().lower()
+    option = row["option"]
+    if isinstance(option, str): #Check if its a String
+        option = option.strip().lower() #Strip only if it is a string
+    else:
+        option = str(option).lower() #Convert to string and lower if not a string.
+        if option == 'nan':
+            option = '' #Set to empty string if its nan.
     where_condition = str(row.get("where_condition", "")).strip()
     columns_to_add = str(row.get("columns_need_to_add", "")).strip()
     datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
