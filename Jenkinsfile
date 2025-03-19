@@ -19,7 +19,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out main branch..."
-                    sh 'git checkout main'
+                    sh 'git checkout kotak_db'
                 }
             }
         }
