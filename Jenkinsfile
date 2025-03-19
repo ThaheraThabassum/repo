@@ -146,11 +146,13 @@ import datetime
 import subprocess
 import numpy as np
 
-databases = pd.read_excel("<span class="math-inline">\{REMOTE\_EXCEL\_PATH\}"\)
-MYSQL\_USER \= "root"
-MYSQL\_PASSWORD \= "AlgoTeam123"
-timestamp \= datetime\.datetime\.now\(\)\.strftime\("%d\_%m\_%y\_%H\_%M\_%S"\)
-with open\("</span>{TRANSFERRED_SCRIPTS}", "r") as f:
+databases = pd.read_excel("${REMOTE_EXCEL_PATH}") # Corrected line
+
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "AlgoTeam123"
+timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+
+with open("${TRANSFERRED_SCRIPTS}", "r") as f:
     script_files = [line.strip() for line in f.readlines()]
 
 for _, row in databases.iterrows():
