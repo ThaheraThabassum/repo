@@ -37,11 +37,13 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Installing dependencies..."
-                        pip3 install pandas openpyxl
+                        python3 -m venv venv  # Create a virtual environment
+                        source venv/bin/activate  # Activate the virtual environment
+                        pip3 install pandas openpyxl  # Install packages within the virtual environment
                     """
                     script {
                         sh """
+                            source venv/bin/activate  # Activate the virtual environment in the script block as well
                             python3 << EOPYTHON
 import pandas as pd
 import datetime
@@ -86,11 +88,13 @@ EOPYTHON
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Installing dependencies..."
-                        pip3 install pandas openpyxl
+                        python3 -m venv venv  # Create a virtual environment
+                        source venv/bin/activate  # Activate the virtual environment
+                        pip3 install pandas openpyxl  # Install packages within the virtual environment
                     """
                     script {
                         sh """
+                            source venv/bin/activate  # Activate the virtual environment in the script block as well
                             python3 << EOPYTHON
 import pandas as pd
 import os
@@ -121,11 +125,13 @@ EOPYTHON
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        echo "Installing dependencies..."
-                        pip3 install pandas openpyxl
+                        python3 -m venv venv  # Create a virtual environment
+                        source venv/bin/activate  # Activate the virtual environment
+                        pip3 install pandas openpyxl  # Install packages within the virtual environment
                     """
                     script {
                         sh """
+                            source venv/bin/activate  # Activate the virtual environment in the script block as well
                             python3 << EOPYTHON
 import pandas as pd
 import os
