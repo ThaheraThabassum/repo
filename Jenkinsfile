@@ -1,14 +1,14 @@
 pipeline {
     agent any
     environment {
-        SOURCE_REPO = 'git@github.com:ThaheraThabassum/repo.git' // Replace with your source repo URL
-        SOURCE_BRANCH = 'main' // Replace with your source branch
-        TARGET_REPO = 'git@github.com:ThaheraThabassum/testing.git' // Replace with your target repo URL
-        TARGET_BRANCH = 'destination-branch' // Replace with your target branch
+        SOURCE_REPO = 'git@github.com:algonox/ACE-Camunda.git' // Replace with your source repo URL
+        SOURCE_BRANCH = 'kmb' // Replace with your source branch
+        TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git' // Replace with your target repo URL
+        TARGET_BRANCH = 'kmb_uat' // Replace with your target branch
         SSH_KEY = 'jenkins-ssh-key1' // Your SSH key credential ID
         FILES_LIST_FILE = "files_to_deploy.txt"
-        SOURCE_REPO_DIR = 'repo' // Directory to clone source repo
-        TARGET_REPO_DIR = 'testing' // Directory to clone target repo
+        SOURCE_REPO_DIR = 'kmb_local' // Directory to clone source repo
+        TARGET_REPO_DIR = 'kmb_uat' // Directory to clone target repo
     }
     stages {
         stage('Prepare Source Repository') {
