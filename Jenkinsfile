@@ -5,7 +5,7 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_LIST_FILE = "files_to_deploy.xlsx"
+        XLSX_FILE = "deploy_config.xlsx" // Name of your XLSX file
     }
     stages {
         stage('Prepare Repository') {
@@ -33,53 +33,53 @@ pipeline {
             }
         }
 
+        stage('Process XLSX and Generate Files List') {
+            steps {
+                script {
+                    def filesToDeploy = []
+                    def xlsxData = readXlsx file: env.XLSX_FILE, sheetName: 'Sheet1' // Adjust sheet name if needed
+                    xlsxData.each { row ->
+                        if (row.deploy_or_not == 'yes') {
+                            filesToDeploy.add(row.file_path)
+                        }
+                    }
+                    writeFile file: 'files_to_deploy.txt', text: filesToDeploy.join('\n')
+                }
+            }
+        }
+
         stage('Backup Existing Files/Folders') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        python3 -m venv venv  # Create a virtual environment
-                        source venv/bin/activate  # Activate the virtual environment
-                        pip3 install pandas openpyxl  # Install packages within the virtual environment
-                    """
-                    script {
-                        sh """
-                            source venv/bin/activate  # Activate the virtual environment in the script block as well
-                            python3 << EOPYTHON
-import pandas as pd
-import datetime
-import os
-import subprocess
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
+                        git checkout ${SOURCE_BRANCH} -- files_to_deploy.txt
 
-excel_file = "${env.FILES_LIST_FILE}"
-df = pd.read_excel(excel_file)
+                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-timestamp = datetime.datetime.now().strftime("%d_%m_%y_%H_%M_%S")
+                        echo "Creating backups..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ] && [ -e "$item" ]; then
+                                if [[ "$item" == *.* ]]; then
+                                    filename="${item%.*}"
+                                    extension="${item##*.}"
+                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
+                                else
+                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                fi
 
-for _, row in df.iterrows():
-    file_path = str(row["files/folders path"]).strip()
-    deploy = str(row["deploy_or_not"]).strip().lower()
-
-    if deploy == "yes" and file_path:
-        print(f"🔍 Processing backup for: {file_path}")
-
-        if os.path.exists(file_path):
-            if "." in file_path:
-                filename, extension = os.path.splitext(file_path)
-                backup_item = f"{filename}_{timestamp}{extension}"
-            else:
-                backup_item = f"{file_path}_{timestamp}"
-
-            print(f"📦 Backing up {file_path} -> {backup_item}")
-            subprocess.run(["cp", "-r", file_path, backup_item], check=True)
-
-            subprocess.run(["git", "add", backup_item], check=True, cwd="repo")
-            subprocess.run(["git", "commit", "-m", f"Backup created: {backup_item}"], check=True, cwd="repo")
-            subprocess.run(["git", "push", "origin", "${env.TARGET_BRANCH}"], check=True, cwd="repo")
-        else:
-            print(f"⚠️ No existing file or folder found for {file_path}, skipping backup.")
-EOPYTHON
-                        """
-                    }
+                                echo "Backing up $item -> $BACKUP_ITEM"
+                                cp -r "$item" "$BACKUP_ITEM"
+                                git add "$BACKUP_ITEM"
+                                git commit -m "Backup created: $BACKUP_ITEM"
+                                git push origin ${TARGET_BRANCH}
+                            else
+                                echo "No existing file or folder found for $item, skipping backup."
+                            fi
+                        done < files_to_deploy.txt
+                    '''
                 }
             }
         }
@@ -87,36 +87,21 @@ EOPYTHON
         stage('Copy Files/Folders to Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        python3 -m venv venv  # Create a virtual environment
-                        source venv/bin/activate  # Activate the virtual environment
-                        pip3 install pandas openpyxl  # Install packages within the virtual environment
-                    """
-                    script {
-                        sh """
-                            source venv/bin/activate  # Activate the virtual environment in the script block as well
-                            python3 << EOPYTHON
-import pandas as pd
-import os
-import subprocess
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH}
 
-excel_file = "${env.FILES_LIST_FILE}"
-df = pd.read_excel(excel_file)
-
-for _, row in df.iterrows():
-    file_path = str(row["files/folders path"]).strip()
-    deploy = str(row["deploy_or_not"]).strip().lower()
-
-    if deploy == "yes" and file_path:
-        print(f"🔍 Processing copy for: {file_path}")
-        subprocess.run(["git", "checkout", "${env.SOURCE_BRANCH}", "--", file_path], check=True, cwd="repo")
-        subprocess.run(["chmod", "-R", "777", file_path], check=True, cwd="repo")
-        subprocess.run(["git", "add", file_path], check=True, cwd="repo")
-        subprocess.run(["git", "commit", "-m", f"Backup (if exists) & Copy: {file_path} from ${env.SOURCE_BRANCH} to ${env.TARGET_BRANCH}"], check=True, cwd="repo")
-        subprocess.run(["git", "push", "origin", "${env.TARGET_BRANCH}"], check=True, cwd="repo")
-EOPYTHON
-                        """
-                    }
+                        echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                git checkout ${SOURCE_BRANCH} -- "$item"
+                                chmod -R 777 "$item"
+                                git add "$item"
+                                git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                                git push origin ${TARGET_BRANCH}
+                            fi
+                        done < files_to_deploy.txt
+                    '''
                 }
             }
         }
@@ -124,53 +109,42 @@ EOPYTHON
         stage('Remove Old Backups (Keep Only 3)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        python3 -m venv venv  # Create a virtual environment
-                        source venv/bin/activate  # Activate the virtual environment
-                        pip3 install pandas openpyxl  # Install packages within the virtual environment
-                    """
-                    script {
-                        sh """
-                            source venv/bin/activate  # Activate the virtual environment in the script block as well
-                            python3 << EOPYTHON
-import pandas as pd
-import os
-import subprocess
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
 
-excel_file = "${env.FILES_LIST_FILE}"
-df = pd.read_excel(excel_file)
+                        echo "Cleaning up old backups..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                echo "Checking backups for $item..."
+                                if [[ "$item" == *.* ]]; then
+                                    filename="${item%.*}"
+                                    extension="${item##*.}"
+                                    BACKUP_PATTERN="${filename}_*"
+                                else
+                                    BACKUP_PATTERN="${item}_*"
+                                fi
 
-for _, row in df.iterrows():
-    file_path = str(row["files/folders path"]).strip()
-    deploy = str(row["deploy_or_not"]).strip().lower()
+                                BACKUP_ITEMS=$(ls -d ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
 
-    if deploy == "yes" and file_path:
-        print(f"🔍 Processing cleanup for: {file_path}")
+                                echo "Found backups: $BACKUP_ITEMS"
+                                BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
 
-        if "." in file_path:
-            filename, extension = os.path.splitext(file_path)
-            backup_pattern = f"{filename}_*"
-        else:
-            backup_pattern = f"{file_path}_*"
+                                if [ "$BACKUP_COUNT" -gt 3 ]; then
+                                    DELETE_COUNT=$((BACKUP_COUNT - 3))
+                                    echo "Deleting $DELETE_COUNT old backups..."
 
-        backups = sorted([f for f in os.listdir(".") if f.startswith(backup_pattern)], key=lambda x: x.split("_")[-1])
-
-        if len(backups) > 3:
-            delete_count = len(backups) - 3
-            delete_list = backups[:delete_count]
-
-            for backup in delete_list:
-                print(f"🗑️ Deleting old backup: {backup}")
-                subprocess.run(["rm", "-rf", backup], check=True)
-                subprocess.run(["git", "rm", "-r", backup], check=True, cwd="repo")
-
-            subprocess.run(["git", "commit", "-m", "Removed old backups, keeping only the latest 3"], check=True, cwd="repo")
-            subprocess.run(["git", "push", "origin", "${env.TARGET_BRANCH}"], check=True, cwd="repo")
-        else:
-            print("ℹ️ No old backups to delete.")
-EOPYTHON
-                        """
-                    }
+                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -rf
+                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT") 2>/dev/null
+                                    git commit -m "Removed old backups, keeping only the latest 3"
+                                    git push origin ${TARGET_BRANCH}
+                                else
+                                    echo "No old backups to delete."
+                                fi
+                            fi
+                        done < files_to_deploy.txt
+                    '''
                 }
             }
         }
