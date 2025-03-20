@@ -54,7 +54,7 @@ pipeline {
                                 mv "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
 
-                                LATEST_BACKUP=$(ls -td ${item}_* 2>/dev/null | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | sort -r | head -n 1)
+                                LATEST_BACKUP=$(ls -td ${item}_* | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
 
                                 if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
                                     echo "Restoring latest backup: $LATEST_BACKUP -> $item"
@@ -65,7 +65,7 @@ pipeline {
                                 fi
 
                                 echo "Cleaning up old _rev_ backups for $item..."
-                                OLD_BACKUPS=$(ls -td ${item}_rev_* 2>/dev/null | tail -n +3)
+                                OLD_BACKUPS=$(ls -td ${item}_rev_* | tail -n +3)
                                 if [ -n "$OLD_BACKUPS" ]; then
                                     echo "Deleting old backups: $OLD_BACKUPS"
                                     rm -rf $OLD_BACKUPS
