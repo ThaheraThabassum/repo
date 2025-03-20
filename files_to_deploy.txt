@@ -1,2 +1,1 @@
-new_testing
-project1
+kotak_demo_testing.txt
