@@ -6,7 +6,8 @@ pipeline {
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_deploy.txt"
-        EXCEL_FILE = "input.xlsx" // Your Excel file name
+        EXCEL_FILE = "files_to_deploy.xlsx"
+        PYTHON_VENV = "venv"
     }
     stages {
         stage('Prepare Repository') {
@@ -34,22 +35,34 @@ pipeline {
             }
         }
 
+        stage('Setup Python Virtual Environment') {
+            steps {
+                script {
+                    sh '''
+                        echo "Creating Python virtual environment..."
+                        python3 -m venv ${PYTHON_VENV}
+                        source ${PYTHON_VENV}/bin/activate
+                        pip install --upgrade pip
+                        pip install pandas numpy openpyxl
+                    '''
+                }
+            }
+        }
+
         stage('Extract Deployment List from Excel') {
             steps {
                 script {
                     sh '''
-                        echo "Installing Python dependencies..."
-                        pip3 install pandas numpy openpyxl --user
-
                         echo "Extracting deployment list from Excel..."
+                        source ${PYTHON_VENV}/bin/activate
+
                         python3 - <<EOF
 import pandas as pd
+import numpy as np
 
-# Read Excel file and filter deployment items
 df = pd.read_excel("${EXCEL_FILE}", engine='openpyxl')
 deploy_files = df[df['deploy_or_not'].str.lower() == 'yes']['file/folders path'].dropna()
 
-# Save to a text file for Jenkins to process
 deploy_files.to_csv("${FILES_LIST_FILE}", index=False, header=False)
 
 print("Deployment list generated: ${FILES_LIST_FILE}")
@@ -157,6 +170,15 @@ EOF
                         done < ${FILES_LIST_FILE}
                     '''
                 }
+            }
+        }
+
+        stage('Cleanup Python Virtual Environment') {
+            steps {
+                sh '''
+                    echo "Cleaning up virtual environment..."
+                    rm -rf ${PYTHON_VENV}
+                '''
             }
         }
     }
