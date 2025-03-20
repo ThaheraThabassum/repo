@@ -7,7 +7,7 @@ pipeline {
         SSH_KEY = 'jenkins-ssh-key1'
         XLSX_FILE = "files_to_deploy.xlsx"
         TXT_FILE = "files_to_deploy.txt"
-        VENV_DIR = 'venv'  // Virtual Environment Directory
+        VENV_DIR = 'venv'
     }
 
     stages {
@@ -15,6 +15,12 @@ pipeline {
             steps {
                 script {
                     sh '''
+                        echo "Checking and installing python3-venv if not available..."
+                        if ! python3 -m ensurepip --version >/dev/null 2>&1; then
+                            echo "Installing python3-venv..."
+                            sudo apt update && sudo apt install -y python3-venv
+                        fi
+
                         echo "Creating Python virtual environment..."
                         python3 -m venv ${VENV_DIR}
                         source ${VENV_DIR}/bin/activate
@@ -57,7 +63,7 @@ except Exception as e:
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Checking if repository already exists..."
+                        echo "Checking if repository exists..."
                         if [ -d "repo/.git" ]; then
                             echo "Repository exists. Resetting state..."
                             cd repo
