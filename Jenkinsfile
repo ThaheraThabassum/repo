@@ -1,14 +1,15 @@
 pipeline {
     agent any
     environment {
-        SOURCE_REPO = 'git@github.com:algonox/ACE-Camunda.git' // Replace with your source repo URL
-        SOURCE_BRANCH = 'kmb' // Replace with your source branch
-        TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git' // Replace with your target repo URL
-        TARGET_BRANCH = 'kmb_uat' // Replace with your target branch
-        SSH_KEY = 'jenkins-ssh-key1' // Your SSH key credential ID
+        SOURCE_REPO = 'git@github.com:algonox/ACE-Camunda.git'
+        SOURCE_BRANCH = 'kmb'
+        TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
+        TARGET_BRANCH = 'kmb_uat'
+        SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_deploy.txt"
-        SOURCE_REPO_DIR = 'kmb_local' // Directory to clone source repo
-        TARGET_REPO_DIR = 'kmb_uat' // Directory to clone target repo
+        SOURCE_REPO_DIR = 'kmb_local'
+        TARGET_REPO_DIR = 'kmb_uat'
+        WORKSPACE_DIR = "${WORKSPACE}" // Capture the workspace directory
     }
     stages {
         stage('Prepare Source Repository') {
@@ -63,7 +64,7 @@ pipeline {
                         git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
 
-                        cp ../${SOURCE_REPO_DIR}/${FILES_LIST_FILE} .
+                        cp ${WORKSPACE_DIR}/${FILES_LIST_FILE} .
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                         echo "Creating backups in target repo..."
@@ -99,7 +100,7 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 cp -r ../${SOURCE_REPO_DIR}/"$item" .
-                                chmod -R 777 "$item" #Using 755 instead of 777.
+                                chmod -R 777 "$item" 
                                 git add "$item"
                                 git commit -m "Copied: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                                 git push origin ${TARGET_BRANCH}
