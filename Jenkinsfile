@@ -5,9 +5,24 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        XLSX_FILE = "deploy_config.xlsx" // Name of your XLSX file
+        FILES_LIST_FILE = "files_to_deploy.xlsx"
+        FILES_LIST_TXT = "files_to_deploy.txt"
     }
     stages {
+        stage('Convert XLSX to TXT') {
+            steps {
+                script {
+                    sh '''
+                        python3 - <<EOF
+                        import pandas as pd
+                        df = pd.read_excel("${FILES_LIST_FILE}", header=None)
+                        df.to_csv("${FILES_LIST_TXT}", index=False, header=False)
+                        EOF
+                    '''
+                }
+            }
+        }
+
         stage('Prepare Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -33,21 +48,6 @@ pipeline {
             }
         }
 
-        stage('Process XLSX and Generate Files List') {
-            steps {
-                script {
-                    def filesToDeploy = []
-                    def xlsxData = readXlsx file: env.XLSX_FILE, sheetName: 'Sheet1' // Adjust sheet name if needed
-                    xlsxData.each { row ->
-                        if (row.deploy_or_not == 'yes') {
-                            filesToDeploy.add(row.file_path)
-                        }
-                    }
-                    writeFile file: 'files_to_deploy.txt', text: filesToDeploy.join('\n')
-                }
-            }
-        }
-
         stage('Backup Existing Files/Folders') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -55,7 +55,7 @@ pipeline {
                         cd repo
                         git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
-                        git checkout ${SOURCE_BRANCH} -- files_to_deploy.txt
+                        git checkout ${SOURCE_BRANCH} -- ${FILES_LIST_TXT}
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
@@ -78,7 +78,7 @@ pipeline {
                             else
                                 echo "No existing file or folder found for $item, skipping backup."
                             fi
-                        done < files_to_deploy.txt
+                        done < ${FILES_LIST_TXT}
                     '''
                 }
             }
@@ -100,7 +100,7 @@ pipeline {
                                 git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                                 git push origin ${TARGET_BRANCH}
                             fi
-                        done < files_to_deploy.txt
+                        done < ${FILES_LIST_TXT}
                     '''
                 }
             }
@@ -143,7 +143,7 @@ pipeline {
                                     echo "No old backups to delete."
                                 fi
                             fi
-                        done < files_to_deploy.txt
+                        done < ${FILES_LIST_TXT}
                     '''
                 }
             }
