@@ -34,11 +34,37 @@ pipeline {
             }
         }
 
-        stage('Read File List from XLSX') {
+        stage('Setup Python Environment') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    source venv/bin/activate
+                    pip install pandas openpyxl
+                '''
+            }
+        }
+
+        stage('Read File List from XLSX (Pandas)') {
             steps {
                 script {
-                    def fileList = readXlsx file: "${WORKSPACE_DIR}/${FILES_LIST_XLSX}", sheetName: 'Sheet1', cellRange: 'A2:A100'
-                    env.FILES_TO_DEPLOY = fileList.collect { it[0] }.join('\n')
+                    def pythonScript = """
+import pandas as pd
+import sys
+
+try:
+    df = pd.read_excel('${WORKSPACE_DIR}/${FILES_LIST_XLSX}', sheet_name='Sheet1')
+    
+    # Filter rows where 'deploy_or_not' is 'yes'
+    deploy_rows = df[df['deploy_or_not'].astype(str).str.lower() == 'yes']
+    
+    # Extract file paths from the filtered rows
+    file_paths = '\\n'.join(deploy_rows['file/folders path'].dropna().astype(str).tolist())
+    print(file_paths)
+except Exception as e:
+    print(f"Error reading XLSX: {e}", file=sys.stderr)
+                    """
+                    def fileList = sh(script: "venv/bin/python3 -c '${pythonScript}'", returnStdout: true).trim()
+                    env.FILES_TO_DEPLOY = fileList
                 }
             }
         }
