@@ -5,7 +5,7 @@ pipeline {
         TARGET_BRANCH = 'kmb_uat'
         SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_revert.txt"
-        WORKSPACE_DIR = "${WORKSPACE}" // Capture the workspace directory
+        WORKSPACE_DIR = "${WORKSPACE}"
     }
     stages {
         stage('Prepare Repository') {
@@ -16,6 +16,7 @@ pipeline {
                         if [ -d "repo/.git" ]; then
                             echo "Repository exists. Fetching latest changes..."
                             cd repo
+                            git remote set-url origin ${GIT_REPO} # Correct remote URL
                             git fetch --all
                             git reset --hard origin/${TARGET_BRANCH}
                             git clean -fd
@@ -44,7 +45,7 @@ pipeline {
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         echo "Reverting files/folders..."
-                        cp ${WORKSPACE_DIR}/${FILES_LIST_FILE} . #Copying the file to repo directory.
+                        cp ${WORKSPACE_DIR}/${FILES_LIST_FILE} .
 
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
@@ -63,7 +64,6 @@ pipeline {
                                     echo "No valid backup found for $item, skipping restore."
                                 fi
 
-                                # Cleanup old `_rev_` backups, keeping only the latest 2
                                 echo "Cleaning up old _rev_ backups for $item..."
                                 OLD_BACKUPS=$(ls -td ${item}_rev_* 2>/dev/null | tail -n +3)
                                 if [ -n "$OLD_BACKUPS" ]; then
