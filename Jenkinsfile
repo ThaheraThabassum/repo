@@ -5,20 +5,29 @@ pipeline {
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        FILES_LIST_FILE = "files_to_deploy.xlsx"
-        FILES_LIST_TXT = "files_to_deploy.txt"
+        XLSX_FILE = "files_to_deploy.xlsx"
+        TXT_FILE = "files_to_deploy.txt"
     }
     stages {
         stage('Convert XLSX to TXT') {
             steps {
                 script {
-                    sh '''
-                        python3 - <<EOF
-                        import pandas as pd
-                        df = pd.read_excel("${FILES_LIST_FILE}", header=None)
-                        df.to_csv("${FILES_LIST_TXT}", index=False, header=False)
-                        EOF
-                    '''
+                    def pythonScript = '''
+import pandas as pd
+
+xlsx_file = "files_to_deploy.xlsx"
+txt_file = "files_to_deploy.txt"
+
+try:
+    df = pd.read_excel(xlsx_file, header=None)
+    df.to_csv(txt_file, index=False, header=False)
+    print(f"Converted {xlsx_file} to {txt_file} successfully.")
+except Exception as e:
+    print(f"Error: {str(e)}")
+    exit(1)
+'''
+                    writeFile file: 'convert_xlsx.py', text: pythonScript
+                    sh 'python3 convert_xlsx.py'
                 }
             }
         }
@@ -55,7 +64,7 @@ pipeline {
                         cd repo
                         git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
-                        git checkout ${SOURCE_BRANCH} -- ${FILES_LIST_TXT}
+                        git checkout ${SOURCE_BRANCH} -- ${TXT_FILE}
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
@@ -78,7 +87,7 @@ pipeline {
                             else
                                 echo "No existing file or folder found for $item, skipping backup."
                             fi
-                        done < ${FILES_LIST_TXT}
+                        done < ${TXT_FILE}
                     '''
                 }
             }
@@ -100,7 +109,7 @@ pipeline {
                                 git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                                 git push origin ${TARGET_BRANCH}
                             fi
-                        done < ${FILES_LIST_TXT}
+                        done < ${TXT_FILE}
                     '''
                 }
             }
@@ -143,7 +152,7 @@ pipeline {
                                     echo "No old backups to delete."
                                 fi
                             fi
-                        done < ${FILES_LIST_TXT}
+                        done < ${TXT_FILE}
                     '''
                 }
             }
