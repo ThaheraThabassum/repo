@@ -34,37 +34,20 @@ pipeline {
             }
         }
 
-        stage('Setup Python Environment') {
-            steps {
-                sh '''
-                    python3 -m venv venv
-                    source venv/bin/activate
-                    pip install pandas openpyxl
-                '''
-            }
-        }
-
-        stage('Read File List from XLSX (Pandas)') {
+        stage('Read File List from XLSX and Filter') {
             steps {
                 script {
-                    def pythonScript = """
-import pandas as pd
-import sys
-
-try:
-    df = pd.read_excel('${WORKSPACE_DIR}/${FILES_LIST_XLSX}', sheet_name='Sheet1')
-    
-    # Filter rows where 'deploy_or_not' is 'yes'
-    deploy_rows = df[df['deploy_or_not'].astype(str).str.lower() == 'yes']
-    
-    # Extract file paths from the filtered rows
-    file_paths = '\\n'.join(deploy_rows['file/folders path'].dropna().astype(str).tolist())
-    print(file_paths)
-except Exception as e:
-    print(f"Error reading XLSX: {e}", file=sys.stderr)
-                    """
-                    def fileList = sh(script: "venv/bin/python3 -c '${pythonScript}'", returnStdout: true).trim()
-                    env.FILES_TO_DEPLOY = fileList
+                    def deployList = []
+                    def xlsxData = readXlsx file: "${WORKSPACE_DIR}/${FILES_LIST_XLSX}", sheetName: 'Sheet1', cellRange: 'A2:C100' // Read A2, B2, C2 to A100, B100, C100
+                    xlsxData.each { row ->
+                        def fileName = row[0]
+                        def deploy = row[2] // Deploy column (C)
+                        if (deploy && deploy.toString().trim().equalsIgnoreCase('yes')) {
+                            deployList.add(fileName)
+                        }
+                    }
+                    env.FILES_TO_DEPLOY = deployList.join('\n')
+                    echo "Files to deploy: ${env.FILES_TO_DEPLOY}"
                 }
             }
         }
