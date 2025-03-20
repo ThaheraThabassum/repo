@@ -1,10 +1,11 @@
 pipeline {
     agent any
     environment {
-        GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
-        TARGET_BRANCH = 'automate'
+        GIT_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
+        TARGET_BRANCH = 'kmb_uat'
         SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_revert.txt"
+        WORKSPACE_DIR = "${WORKSPACE}" // Capture the workspace directory
     }
     stages {
         stage('Prepare Repository') {
@@ -19,13 +20,13 @@ pipeline {
                             git reset --hard origin/${TARGET_BRANCH}
                             git clean -fd
                             git checkout ${TARGET_BRANCH}
-                            git pull --rebase=false origin ${TARGET_BRANCH}  # FIX: Ensures proper merge
+                            git pull --rebase=false origin ${TARGET_BRANCH}
                         else
                             echo "Cloning repository..."
                             git clone ${GIT_REPO} repo
                             cd repo
                             git checkout ${TARGET_BRANCH}
-                            git pull --rebase=false origin ${TARGET_BRANCH}  # FIX: Ensures proper merge
+                            git pull --rebase=false origin ${TARGET_BRANCH}
                         fi
                     '''
                 }
@@ -43,6 +44,8 @@ pipeline {
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         echo "Reverting files/folders..."
+                        cp ${WORKSPACE_DIR}/${FILES_LIST_FILE} . #Copying the file to repo directory.
+
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
                                 BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
