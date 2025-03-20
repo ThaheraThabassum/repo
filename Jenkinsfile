@@ -6,35 +6,9 @@ pipeline {
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_deploy.txt"
+        EXCEL_FILE = "input.xlsx" // Your Excel file name
     }
     stages {
-        stage('Read Excel and Extract Paths') {
-            steps {
-                script {
-                    def excelFile = 'input.xlsx' // Update with actual path
-                    def extractedFiles = []
-                    
-                    // Read Excel file
-                    def workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(new FileInputStream(excelFile))
-                    def sheet = workbook.getSheetAt(0) // Assuming first sheet
-                    
-                    sheet.each { row ->
-                        def filePath = row.getCell(0)?.toString()?.trim()
-                        def deployFlag = row.getCell(1)?.toString()?.trim()?.toLowerCase()
-                        
-                        if (filePath && deployFlag == 'yes') {
-                            extractedFiles.add(filePath)
-                        }
-                    }
-                    
-                    workbook.close()
-                    
-                    // Write to FILES_LIST_FILE
-                    new File(FILES_LIST_FILE).text = extractedFiles.join('\n')
-                }
-            }
-        }
-        
         stage('Prepare Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -60,7 +34,32 @@ pipeline {
             }
         }
 
-        stage('Backup and Deploy Files') {
+        stage('Extract Deployment List from Excel') {
+            steps {
+                script {
+                    sh '''
+                        echo "Installing Python dependencies..."
+                        pip3 install pandas numpy openpyxl --user
+
+                        echo "Extracting deployment list from Excel..."
+                        python3 - <<EOF
+import pandas as pd
+
+# Read Excel file and filter deployment items
+df = pd.read_excel("${EXCEL_FILE}", engine='openpyxl')
+deploy_files = df[df['deploy_or_not'].str.lower() == 'yes']['file/folders path'].dropna()
+
+# Save to a text file for Jenkins to process
+deploy_files.to_csv("${FILES_LIST_FILE}", index=False, header=False)
+
+print("Deployment list generated: ${FILES_LIST_FILE}")
+EOF
+                    '''
+                }
+            }
+        }
+
+        stage('Backup Existing Files/Folders') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -71,7 +70,7 @@ pipeline {
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-                        echo "Processing files..."
+                        echo "Creating backups..."
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ] && [ -e "$item" ]; then
                                 if [[ "$item" == *.* ]]; then
@@ -87,14 +86,30 @@ pipeline {
                                 git add "$BACKUP_ITEM"
                                 git commit -m "Backup created: $BACKUP_ITEM"
                                 git push origin ${TARGET_BRANCH}
-                                
+                            else
+                                echo "No existing file or folder found for $item, skipping backup."
+                            fi
+                        done < ${FILES_LIST_FILE}
+                    '''
+                }
+            }
+        }
+
+        stage('Copy Files/Folders to Target Branch') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        cd repo
+                        git checkout ${TARGET_BRANCH}
+
+                        echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
                                 git checkout ${SOURCE_BRANCH} -- "$item"
                                 chmod -R 777 "$item"
                                 git add "$item"
-                                git commit -m "Deployed: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                                git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                                 git push origin ${TARGET_BRANCH}
-                            else
-                                echo "Skipping: No existing file or folder found for $item."
                             fi
                         done < ${FILES_LIST_FILE}
                     '''
