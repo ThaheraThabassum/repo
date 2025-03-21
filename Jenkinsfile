@@ -75,7 +75,6 @@ pipeline {
                             fi
                         done < ${FILES_LIST_FILE}
 
-                        # Check if there are changes before committing
                         if git diff --cached --quiet; then
                             echo "No changes to commit in backup."
                         else
@@ -93,7 +92,6 @@ pipeline {
                         cd ${TARGET_REPO_DIR}
                         git checkout ${TARGET_BRANCH}
 
-                        # Ensure `files_to_deploy.txt` is ignored
                         echo "${FILES_LIST_FILE}" >> .gitignore
                         git add .gitignore
 
@@ -105,7 +103,6 @@ pipeline {
                             fi
                         done < ${FILES_LIST_FILE}
 
-                        # Check if there are changes before committing
                         if git diff --cached --quiet; then
                             echo "No changes to commit in file copy."
                         else
@@ -116,35 +113,31 @@ pipeline {
                 }
             }
         }
-    }
-    post {
-        always {
-            stage('Remove Old Backups (Keep Only 3)') {
-                steps {
-                    sshagent(credentials: [SSH_KEY]) {
-                        sh '''
-                            cd ${TARGET_REPO_DIR}
-                            git checkout ${TARGET_BRANCH}
-                            git pull origin ${TARGET_BRANCH}
+        stage('Remove Old Backups (Keep Only 3)') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        cd ${TARGET_REPO_DIR}
+                        git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
 
-                            while IFS= read -r item || [ -n "$item" ]; do
-                                if [ -n "$item" ]; then
-                                    echo "Checking backups for $item..."
-                                    BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -3)
-                                    
-                                    if [ -n "$BACKUP_ITEMS" ]; then
-                                        echo "Deleting old backups..."
-                                        echo "$BACKUP_ITEMS" | xargs rm -rf
-                                        echo "$BACKUP_ITEMS" | xargs git rm -r --ignore-unmatch
-                                        git commit -m "Removed old backups, keeping only the latest 3"
-                                        git push origin ${TARGET_BRANCH}
-                                    else
-                                        echo "No old backups to delete."
-                                    fi
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                echo "Checking backups for $item..."
+                                BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -3)
+
+                                if [ -n "$BACKUP_ITEMS" ]; then
+                                    echo "Deleting old backups..."
+                                    echo "$BACKUP_ITEMS" | xargs rm -rf
+                                    echo "$BACKUP_ITEMS" | xargs git rm -r --ignore-unmatch
+                                    git commit -m "Removed old backups, keeping only the latest 3"
+                                    git push origin ${TARGET_BRANCH}
+                                else
+                                    echo "No old backups to delete."
                                 fi
-                            done < ${FILES_LIST_FILE}
-                        '''
-                    }
+                            fi
+                        done < ${FILES_LIST_FILE}
+                    '''
                 }
             }
         }
