@@ -71,11 +71,11 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ] && [ -e "$item" ]; then
                                 if [[ "$item" == *.* ]]; then
-                                    filename="${item%.*}"
-                                    extension="${item##*.}"
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
+                                    filename="\${item%.*}"
+                                    extension="\${item##*.}"
+                                    BACKUP_ITEM="\${filename}_\${TIMESTAMP}.\${extension}"
                                 else
-                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                    BACKUP_ITEM="\${item}_\${TIMESTAMP}"
                                 fi
                                 echo "Backing up $item -> $BACKUP_ITEM"
                                 cp -r "$item" "$BACKUP_ITEM"
@@ -100,7 +100,7 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 cp -r ../${SOURCE_REPO_DIR}/"$item" .
-                                chmod -R 777 "$item" 
+                                chmod -R 777 "$item"
                                 git add "$item"
                                 git commit -m "Copied: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                                 git push origin ${TARGET_BRANCH}
@@ -123,11 +123,11 @@ pipeline {
                             if [ -n "$item" ]; then
                                 echo "Checking backups for $item..."
                                 if [[ "$item" == *.* ]]; then
-                                    filename="${item%.*}"
-                                    extension="${item##*.}"
-                                    BACKUP_PATTERN="${filename}_*"
+                                    filename="\${item%.*}"
+                                    extension="\${item##*.}"
+                                    BACKUP_PATTERN="\${filename}_*"
                                 else
-                                    BACKUP_PATTERN="${item}_*"
+                                    BACKUP_PATTERN="\${item}_*"
                                 fi
                                 BACKUP_ITEMS=$(ls -d ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
                                 echo "Found backups: $BACKUP_ITEMS"
