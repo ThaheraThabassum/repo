@@ -6,12 +6,13 @@ pipeline {
         TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         TARGET_BRANCH = 'kmb_uat'
         SSH_KEY = 'jenkins-ssh-key1'
-        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // Updated UAT server SSH key
+        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
         FILES_LIST_FILE = "files_to_deploy.txt"
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
         WORKSPACE_DIR = "${WORKSPACE}"
-        UAT_SERVER = "65.1.176.9"
+        UAT_SERVER = 'ubuntu@uat-server-ip'
+        UAT_PROJECT_DIR = '/home/ubuntu/ACE-Camunda'
     }
     stages {
         stage('Prepare Source Repository') {
@@ -145,13 +146,15 @@ pipeline {
         }
         stage('Deploy to UAT Server') {
             steps {
-                sshagent(credentials: [UAT_SSH_KEY]) { // Using the updated UAT SSH key
+                sshagent(credentials: [UAT_SSH_KEY]) {
                     sh '''
-                        echo "Connecting to UAT server and deploying..."
-                        ssh -o StrictHostKeyChecking=no jenkins@${UAT_SERVER} << EOF
-                            cd /home/ubuntu/ACE-Camunda
-                            git pull origin ${TARGET_BRANCH}
-                            sudo docker-compose up --build -d --force-recreate
+                        ssh -o StrictHostKeyChecking=no ${UAT_SERVER} << EOF
+                        echo "Navigating to UAT project directory..."
+                        cd ${UAT_PROJECT_DIR}
+                        echo "Pulling latest changes from repository..."
+                        git pull origin ${TARGET_BRANCH}
+                        echo "Recreating Docker containers..."
+                        sudo docker-compose up --build -d --force-recreate
                         EOF
                     '''
                 }
