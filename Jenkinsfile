@@ -10,6 +10,7 @@ pipeline {
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
         WORKSPACE_DIR = "${WORKSPACE}"
+        UAT_SERVER = "65.1.176.9"
     }
     stages {
         stage('Prepare Source Repository') {
@@ -137,6 +138,20 @@ pipeline {
                                 fi
                             fi
                         done < ${FILES_LIST_FILE}
+                    '''
+                }
+            }
+        }
+        stage('Deploy to UAT Server') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        echo "Connecting to UAT server and deploying..."
+                        ssh -o StrictHostKeyChecking=no ${UAT_SERVER} << EOF
+                            cd /home/ubuntu/ACE-Camunda
+                            git pull origin ${TARGET_BRANCH}
+                            sudo docker-compose up --build -d --force-recreate
+                        EOF
                     '''
                 }
             }
