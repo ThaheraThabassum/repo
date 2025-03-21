@@ -1,14 +1,12 @@
 pipeline {
     agent any
-    
     environment {
         GIT_REPO = 'git@github.com:ThaheraThabassum/repo.git'
         SOURCE_BRANCH = 'main'
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
-        EXCEL_FILE = "files_to_deploy.xlsx"
+        FILES_LIST_FILE = "files_to_deploy.xlsx"
     }
-    
     stages {
         stage('Prepare Repository') {
             steps {
@@ -35,67 +33,28 @@ pipeline {
             }
         }
 
-        stage('Read Excel and Backup Existing Files') {
+        stage('Backup Existing Files/Folders') {
             steps {
-                script {
-                    echo "Installing dependencies for Excel processing in a virtual environment..."
-                    sh '''
-                        python3 -m venv venv
-                        source venv/bin/activate
-                        pip install pandas openpyxl
-                    '''
-                    
-                    def filesToDeploy = []
-                    
-                    sh '''
-                        source venv/bin/activate
-                        python3 << EOPYTHON
-import pandas as pd
-
-excel_file = "${WORKSPACE}/${EXCEL_FILE}"
-df = pd.read_excel(excel_file)
-
-files = df['files'].dropna().tolist()
-
-with open("files_to_deploy.txt", "w") as f:
-    f.write("\\n".join(files))
-EOPYTHON
-                    '''
-                }
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd repo
                         git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
-                        git checkout ${SOURCE_BRANCH} -- files_to_deploy.txt
+                        git checkout ${SOURCE_BRANCH} -- ${FILES_LIST_FILE}
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         echo "Creating backups..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ] && [ -e "$item" ]; then
-                                if [[ "$item" == *.* ]]; then
-                                    filename="${item%.*}"
-                                    extension="${item##*.}"
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
-                                else
-                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
-                                fi
-                                echo "Backing up $item -> $BACKUP_ITEM"
-                                cp -r "$item" "$BACKUP_ITEM"
-                                git add "$BACKUP_ITEM"
-                                git commit -m "Backup created: $BACKUP_ITEM"
-                                git push origin ${TARGET_BRANCH}
-                            else
-                                echo "No existing file or folder found for $item, skipping backup."
-                            fi
-                        done < files_to_deploy.txt
+                        python3 -c 'import openpyxl, os; try: wb = openpyxl.load_workbook("${FILES_LIST_FILE}"); sheet = wb.active; for row in sheet.iter_rows(min_row=1): item = row[0].value; if item and item.strip(): if os.path.exists(item): filename, ext = os.path.splitext(item); backup_item = f"{filename}_{os.environ["TIMESTAMP"]}{ext}" if ext else f"{item}_{os.environ["TIMESTAMP"]}"; print(f"Backing up {item} -> {backup_item}"); os.system(f"cp -r \\"{item}\\" \\"{backup_item}\\"; git add \\"{backup_item}\\"; "); else: print(f"No existing file or folder found for {item}, skipping backup."); except Exception as e: print(f"Error during backup: {e}")'
+
+                        git commit -m "Backup created: $(date +%d_%m_%y_%H_%M_%S)"
+                        git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
         }
 
-        stage('Deploy Files to Target Branch') {
+        stage('Copy Files/Folders to Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -103,15 +62,8 @@ EOPYTHON
                         git checkout ${TARGET_BRANCH}
 
                         echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ]; then
-                                git checkout ${SOURCE_BRANCH} -- "$item"
-                                chmod -R 777 "$item"
-                                git add "$item"
-                                git commit -m "Backup (if exists) & Copy: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-                                git push origin ${TARGET_BRANCH}
-                            fi
-                        done < files_to_deploy.txt
+                        python3 -c 'import openpyxl, os; try: wb = openpyxl.load_workbook("${FILES_LIST_FILE}"); sheet = wb.active; for row in sheet.iter_rows(min_row=1): item = row[0].value; if item and item.strip(): os.system(f"git checkout ${os.environ["SOURCE_BRANCH"]} -- \\"{item}\\"; chmod -R 777 \\"{item}\\"; git add \\"{item}\\"; git commit -m \\"Backup (if exists) & Copy: {item} from ${os.environ["SOURCE_BRANCH"]} to ${os.environ["TARGET_BRANCH"]}\\"") ; except Exception as e: print(f"Error during copy: {e}")'
+                        git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
@@ -126,31 +78,7 @@ EOPYTHON
                         git pull origin ${TARGET_BRANCH}
 
                         echo "Cleaning up old backups..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ]; then
-                                echo "Checking backups for $item..."
-                                if [[ "$item" == *.* ]]; then
-                                    filename="${item%.*}"
-                                    extension="${item##*.}"
-                                    BACKUP_PATTERN="${filename}_*"
-                                else
-                                    BACKUP_PATTERN="${item}_*"
-                                fi
-                                BACKUP_ITEMS=$(ls -d ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
-                                echo "Found backups: $BACKUP_ITEMS"
-                                BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
-                                if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                    DELETE_COUNT=$((BACKUP_COUNT - 3))
-                                    echo "Deleting $DELETE_COUNT old backups..."
-                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -rf
-                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT") 2>/dev/null
-                                    git commit -m "Removed old backups, keeping only the latest 3"
-                                    git push origin ${TARGET_BRANCH}
-                                else
-                                    echo "No old backups to delete."
-                                fi
-                            fi
-                        done < files_to_deploy.txt
+                        python3 -c 'import openpyxl, os, subprocess; try: wb = openpyxl.load_workbook("${FILES_LIST_FILE}"); sheet = wb.active; for row in sheet.iter_rows(min_row=1): item = row[0].value; if item and item.strip(): filename, ext = os.path.splitext(item); backup_pattern = f"{filename}_*" if ext else f"{item}_*"; backups = subprocess.check_output(["ls", "-d", backup_pattern], text=True, stderr=subprocess.DEVNULL, shell=True).splitlines(); if backups: backups.sort(key=lambda x: [int(part) if part.isdigit() else part for part in x.split("_")]); backup_count = len(backups); if backup_count > 3: delete_count = backup_count - 3; to_delete = backups[:delete_count]; print(f"Deleting {delete_count} old backups..."); for backup in to_delete: os.system(f"rm -rf \\"{backup}\\"; git rm -r \\"{backup}\\"; git commit -m \\"Removed old backups, keeping only the latest 3\\""); os.system(f"git push origin ${os.environ["TARGET_BRANCH"]}") else: print("No old backups to delete."); else: print(f"No backups found for {item}"); except Exception as e: print(f"Error during backup cleanup: {e}")'
                     '''
                 }
             }
