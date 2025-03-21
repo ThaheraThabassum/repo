@@ -6,10 +6,12 @@ pipeline {
         TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         TARGET_BRANCH = 'kmb_uat'
         SSH_KEY = 'jenkins-ssh-key1'
+        UAT_SSH_KEY = 'jenkins-ssh-key1' // Jenkins credential for UAT SSH
+        UAT_SERVER = '65.1.176.9' // Replace with actual UAT server
         FILES_LIST_FILE = "files_to_deploy.txt"
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
-        WORKSPACE_DIR = "${WORKSPACE}" // Capture the workspace directory
+        WORKSPACE_DIR = "${WORKSPACE}"
     }
     stages {
         stage('Prepare Source Repository') {
@@ -144,6 +146,19 @@ pipeline {
                                 fi
                             fi
                         done < ${FILES_LIST_FILE}
+                    '''
+                }
+            }
+        }
+        stage('Deploy to UAT') {
+            steps {
+                sshagent(credentials: [UAT_SSH_KEY]) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${UAT_SERVER} << EOF
+                        cd /home/ubuntu/ACE-Camunda
+                        git pull origin ${TARGET_BRANCH}
+                        sudo docker-compose up --build -d --force-recreate
+                        EOF
                     '''
                 }
             }
