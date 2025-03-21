@@ -47,7 +47,7 @@ pipeline {
                         echo "Creating backups..."
                         python3 -c 'import openpyxl, os; try: wb = openpyxl.load_workbook("${FILES_LIST_FILE}"); sheet = wb.active; for row in sheet.iter_rows(min_row=1): item = row[0].value; if item and item.strip(): if os.path.exists(item): filename, ext = os.path.splitext(item); backup_item = f"{filename}_{os.environ["TIMESTAMP"]}{ext}" if ext else f"{item}_{os.environ["TIMESTAMP"]}"; print(f"Backing up {item} -> {backup_item}"); os.system(f"cp -r \\"{item}\\" \\"{backup_item}\\"; git add \\"{backup_item}\\"; "); else: print(f"No existing file or folder found for {item}, skipping backup."); except Exception as e: print(f"Error during backup: {e}")'
 
-                        git commit -m "Backup created: $(date +%d_%m_%y_%H_%M_%S)"
+                        git commit -m "Backup created: $TIMESTAMP"
                         git push origin ${TARGET_BRANCH}
                     '''
                 }
