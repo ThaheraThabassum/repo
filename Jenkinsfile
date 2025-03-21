@@ -5,14 +5,14 @@ pipeline {
         SOURCE_BRANCH = 'kmb'
         TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         TARGET_BRANCH = 'kmb_uat'
-        SSH_KEY = 'jenkins-ssh-key1'
-        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
+        SSH_KEY = 'jenkins-ssh-key1'  // For repo access
+        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // For UAT SSH connection
         FILES_LIST_FILE = "files_to_deploy.txt"
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
         WORKSPACE_DIR = "${WORKSPACE}"
-        UAT_SERVER = '65.1.176.9'
-        UAT_PROJECT_DIR = '/home/ubuntu/ACE-Camunda'
+        REMOTE_USER = 'your_user'         // Change to UAT SSH username
+        REMOTE_HOST = 'your_uat_server_ip' // Change to UAT server IP
     }
     stages {
         stage('Prepare Source Repository') {
@@ -144,17 +144,19 @@ pipeline {
                 }
             }
         }
-        stage('Deploy to UAT Server') {
+        stage('Connect to UAT Server via SSH') {
             steps {
-                sshagent(credentials: [env.UAT_SSH_KEY]) {
+                sshagent(credentials: [UAT_SSH_KEY]) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ubuntu@${UAT_SERVER} << EOF
-                        echo "Navigating to UAT project directory..."
-                        cd ${UAT_PROJECT_DIR}
-                        echo "Pulling latest changes from repository..."
-                        git pull origin ${TARGET_BRANCH}
-                        echo "Recreating Docker containers..."
-                        sudo docker-compose up --build -d --force-recreate
+                        echo "Connecting to UAT server ${REMOTE_HOST}..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
+                            echo "Successfully connected to ${REMOTE_HOST}"
+                            cd /home/ubuntu/ACE-Camunda/
+                            echo "Pulling latest changes from Git..."
+                            sudo git pull
+                            echo "Restarting Docker containers..."
+                            sudo docker-compose up --build -d --force-recreate
+                            echo "Deployment completed."
                         EOF
                     '''
                 }
