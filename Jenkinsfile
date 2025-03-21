@@ -146,9 +146,9 @@ pipeline {
         }
         stage('Deploy to UAT Server') {
             steps {
-                sshagent(credentials: [UAT_SSH_KEY]) {
+                sshagent(credentials: [env.UAT_SSH_KEY]) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${UAT_SERVER} << EOF
+                        ssh -o StrictHostKeyChecking=no ubuntu@${UAT_SERVER} << EOF
                         echo "Navigating to UAT project directory..."
                         cd ${UAT_PROJECT_DIR}
                         echo "Pulling latest changes from repository..."
