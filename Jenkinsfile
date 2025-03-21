@@ -15,7 +15,7 @@ pipeline {
         stage('Prepare Source Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh '''
                         echo "Cloning or fetching source repository..."
                         if [ -d "${SOURCE_REPO_DIR}/.git" ]; then
                             cd ${SOURCE_REPO_DIR}
@@ -37,7 +37,7 @@ pipeline {
         stage('Prepare Target Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh '''
                         echo "Cloning or fetching target repository..."
                         if [ -d "${TARGET_REPO_DIR}/.git" ]; then
                             cd ${TARGET_REPO_DIR}
@@ -59,7 +59,7 @@ pipeline {
         stage('Backup Existing Files/Folders in Target Repo') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh '''
                         cd ${TARGET_REPO_DIR}
                         git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
@@ -93,14 +93,14 @@ pipeline {
         stage('Copy Files/Folders from Source to Target Repo') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh '''
                         cd ${TARGET_REPO_DIR}
                         git checkout ${TARGET_BRANCH}
                         echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 cp -r ../${SOURCE_REPO_DIR}/"$item" .
-                                chmod -R 777 "$item"
+                                chmod -R 777 "$item" 
                                 git add "$item"
                                 git commit -m "Copied: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                                 git push origin ${TARGET_BRANCH}
@@ -113,7 +113,7 @@ pipeline {
         stage('Remove Old Backups (Keep Only 3) in Target Repo') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh '''
                         cd ${TARGET_REPO_DIR}
                         git checkout ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH}
