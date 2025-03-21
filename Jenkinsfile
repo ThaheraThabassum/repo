@@ -11,7 +11,7 @@ pipeline {
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
         WORKSPACE_DIR = "${WORKSPACE}"
-        UAT_SERVER = 'ubuntu@uat-server-ip'
+        UAT_SERVER = '65.1.176.9'
         UAT_PROJECT_DIR = '/home/ubuntu/ACE-Camunda'
     }
     stages {
