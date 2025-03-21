@@ -9,14 +9,14 @@ pipeline {
         FILES_LIST_FILE = "files_to_deploy.txt"
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
-        WORKSPACE_DIR = "${WORKSPACE}" // Capture the workspace directory
+        WORKSPACE_DIR = "${WORKSPACE}"
     }
     stages {
         stage('Prepare Source Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Cloning or fetching source repository..."
+                        echo "Cloning or updating source repo..."
                         if [ -d "${SOURCE_REPO_DIR}/.git" ]; then
                             cd ${SOURCE_REPO_DIR}
                             git fetch --all
@@ -38,7 +38,7 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Cloning or fetching target repository..."
+                        echo "Cloning or updating target repo..."
                         if [ -d "${TARGET_REPO_DIR}/.git" ]; then
                             cd ${TARGET_REPO_DIR}
                             git fetch --all
@@ -56,55 +56,7 @@ pipeline {
                 }
             }
         }
-        stage('Backup Existing Files/Folders in Target Repo') {
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        cd ${TARGET_REPO_DIR}
-                        git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
-
-                        cp ${WORKSPACE_DIR}/${FILES_LIST_FILE} .
-
-                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
-                        echo "Creating backups in target repo..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ] && [ -e "$item" ]; then
-                                BACKUP_ITEM="${item}_${TIMESTAMP}"
-                                echo "Backing up $item -> $BACKUP_ITEM"
-                                cp -rp "$item" "$BACKUP_ITEM"
-                                git add "$BACKUP_ITEM"
-                                git commit -m "Backup created: $BACKUP_ITEM"
-                                git push origin ${TARGET_BRANCH}
-                            else
-                                echo "No existing file or folder found for $item in target repo, skipping backup."
-                            fi
-                        done < ${FILES_LIST_FILE}
-                    '''
-                }
-            }
-        }
-        stage('Copy Files/Folders from Source to Target Repo') {
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        cd ${TARGET_REPO_DIR}
-                        git checkout ${TARGET_BRANCH}
-                        echo "Copying specific files/folders from ${SOURCE_BRANCH} to ${TARGET_BRANCH}..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ]; then
-                                cp -rp ../${SOURCE_REPO_DIR}/"$item" .
-                                chmod -R 777 "$item" 
-                                git add "$item"
-                                git commit -m "Copied: $item from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-                                git push origin ${TARGET_BRANCH}
-                            fi
-                        done < ${FILES_LIST_FILE}
-                    '''
-                }
-            }
-        }
-        stage('Remove Old Backups (Keep Only 3) in Target Repo') {
+        stage('Backup Existing Files in Target Repo') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -112,24 +64,87 @@ pipeline {
                         git checkout ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH}
 
-                        echo "Cleaning up old backups in target repo..."
+                        cp ${WORKSPACE_DIR}/${FILES_LIST_FILE} .
+
+                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                         while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ]; then
-                                echo "Checking backups for $item..."
-                                BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -3)
-                                
-                                if [ -n "$BACKUP_ITEMS" ]; then
-                                    echo "Deleting old backups..."
-                                    echo "$BACKUP_ITEMS" | xargs rm -rf
-                                    echo "$BACKUP_ITEMS" | xargs git rm -r --ignore-unmatch
-                                    git commit -m "Removed old backups, keeping only the latest 3"
-                                    git push origin ${TARGET_BRANCH}
-                                else
-                                    echo "No old backups to delete."
-                                fi
+                            if [ -n "$item" ] && [ -e "$item" ]; then
+                                BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                cp -rp "$item" "$BACKUP_ITEM"
+                                git add "$BACKUP_ITEM"
                             fi
                         done < ${FILES_LIST_FILE}
+
+                        # Check if there are changes before committing
+                        if git diff --cached --quiet; then
+                            echo "No changes to commit in backup."
+                        else
+                            git commit -m "Backup created on $TIMESTAMP"
+                            git push origin ${TARGET_BRANCH}
+                        fi
                     '''
+                }
+            }
+        }
+        stage('Copy Files from Source to Target Repo') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        cd ${TARGET_REPO_DIR}
+                        git checkout ${TARGET_BRANCH}
+
+                        # Ensure `files_to_deploy.txt` is ignored
+                        echo "${FILES_LIST_FILE}" >> .gitignore
+                        git add .gitignore
+
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                cp -rp ../${SOURCE_REPO_DIR}/"$item" .
+                                chmod -R 777 "$item"
+                                git add -A
+                            fi
+                        done < ${FILES_LIST_FILE}
+
+                        # Check if there are changes before committing
+                        if git diff --cached --quiet; then
+                            echo "No changes to commit in file copy."
+                        else
+                            git commit -m "Copied files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                            git push origin ${TARGET_BRANCH}
+                        fi
+                    '''
+                }
+            }
+        }
+    }
+    post {
+        always {
+            stage('Remove Old Backups (Keep Only 3)') {
+                steps {
+                    sshagent(credentials: [SSH_KEY]) {
+                        sh '''
+                            cd ${TARGET_REPO_DIR}
+                            git checkout ${TARGET_BRANCH}
+                            git pull origin ${TARGET_BRANCH}
+
+                            while IFS= read -r item || [ -n "$item" ]; do
+                                if [ -n "$item" ]; then
+                                    echo "Checking backups for $item..."
+                                    BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -3)
+                                    
+                                    if [ -n "$BACKUP_ITEMS" ]; then
+                                        echo "Deleting old backups..."
+                                        echo "$BACKUP_ITEMS" | xargs rm -rf
+                                        echo "$BACKUP_ITEMS" | xargs git rm -r --ignore-unmatch
+                                        git commit -m "Removed old backups, keeping only the latest 3"
+                                        git push origin ${TARGET_BRANCH}
+                                    else
+                                        echo "No old backups to delete."
+                                    fi
+                                fi
+                            done < ${FILES_LIST_FILE}
+                        '''
+                    }
                 }
             }
         }
