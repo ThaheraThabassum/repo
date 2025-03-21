@@ -70,7 +70,7 @@ pipeline {
                         echo "Creating backups in target repo..."
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ] && [ -e "$item" ]; then
-                                if [[ "$item" == *.* ]]; then
+                                if [ -n "\${item##*.}" ]; then
                                     filename="\${item%.*}"
                                     extension="\${item##*.}"
                                     BACKUP_ITEM="\${filename}_\${TIMESTAMP}.\${extension}"
@@ -122,7 +122,7 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 echo "Checking backups for $item..."
-                                if [[ "$item" == *.* ]]; then
+                                if [ -n "\${item##*.}" ]; then
                                     filename="\${item%.*}"
                                     extension="\${item##*.}"
                                     BACKUP_PATTERN="\${filename}_*"
