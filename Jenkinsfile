@@ -7,6 +7,7 @@ pipeline {
         TARGET_BRANCH = 'automate'
         SSH_KEY = 'jenkins-ssh-key1'
         EXCEL_FILE = "files_to_deploy.xlsx"
+        VENV_PATH = "venv"
     }
     
     stages {
@@ -38,12 +39,21 @@ pipeline {
         stage('Read Excel and Backup Existing Files') {
             steps {
                 script {
-                    echo "Installing dependencies for Excel processing..."
-                    sh 'pip install pandas openpyxl --user'
-                    
-                    def filesToDeploy = []
-                    
+                    echo "Setting up virtual environment and installing dependencies..."
                     sh '''
+                        cd repo
+                        if [ ! -d "${VENV_PATH}" ]; then
+                            python3 -m venv ${VENV_PATH}
+                        fi
+                        source ${VENV_PATH}/bin/activate
+                        pip install --upgrade pip
+                        pip install pandas openpyxl
+                    '''
+
+                    echo "Extracting file list from Excel..."
+                    sh '''
+                        cd repo
+                        source ${VENV_PATH}/bin/activate
                         python3 << EOPYTHON
 import pandas as pd
 
@@ -53,39 +63,40 @@ df = pd.read_excel(excel_file)
 files = df['files'].dropna().tolist()
 
 with open("files_to_deploy.txt", "w") as f:
-    f.write("\n".join(files))
+    f.write("\\n".join(files))
 EOPYTHON
                     '''
-                }
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        cd repo
-                        git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
-                        git checkout ${SOURCE_BRANCH} -- files_to_deploy.txt
 
-                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+                    sshagent(credentials: [SSH_KEY]) {
+                        sh '''
+                            cd repo
+                            git checkout ${TARGET_BRANCH} || git checkout -b ${TARGET_BRANCH}
+                            git pull origin ${TARGET_BRANCH} || echo "Target branch not found. Creating it."
+                            git checkout ${SOURCE_BRANCH} -- files_to_deploy.txt
 
-                        echo "Creating backups..."
-                        while IFS= read -r item || [ -n "$item" ]; do
-                            if [ -n "$item" ] && [ -e "$item" ]; then
-                                if [[ "$item" == *.* ]]; then
-                                    filename="${item%.*}"
-                                    extension="${item##*.}"
-                                    BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
+                            TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+                            echo "Creating backups..."
+                            while IFS= read -r item || [ -n "$item" ]; do
+                                if [ -n "$item" ] && [ -e "$item" ]; then
+                                    if [[ "$item" == *.* ]]; then
+                                        filename="${item%.*}"
+                                        extension="${item##*.}"
+                                        BACKUP_ITEM="${filename}_${TIMESTAMP}.${extension}"
+                                    else
+                                        BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                    fi
+                                    echo "Backing up $item -> $BACKUP_ITEM"
+                                    cp -r "$item" "$BACKUP_ITEM"
+                                    git add "$BACKUP_ITEM"
+                                    git commit -m "Backup created: $BACKUP_ITEM"
+                                    git push origin ${TARGET_BRANCH}
                                 else
-                                    BACKUP_ITEM="${item}_${TIMESTAMP}"
+                                    echo "No existing file or folder found for $item, skipping backup."
                                 fi
-                                echo "Backing up $item -> $BACKUP_ITEM"
-                                cp -r "$item" "$BACKUP_ITEM"
-                                git add "$BACKUP_ITEM"
-                                git commit -m "Backup created: $BACKUP_ITEM"
-                                git push origin ${TARGET_BRANCH}
-                            else
-                                echo "No existing file or folder found for $item, skipping backup."
-                            fi
-                        done < files_to_deploy.txt
-                    '''
+                            done < files_to_deploy.txt
+                        '''
+                    }
                 }
             }
         }
@@ -131,14 +142,11 @@ EOPYTHON
                                 else
                                     BACKUP_PATTERN="${item}_*"
                                 fi
-                                BACKUP_ITEMS=$(ls -d ${BACKUP_PATTERN} 2>/dev/null | sort -t '_' -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n)
-                                echo "Found backups: $BACKUP_ITEMS"
-                                BACKUP_COUNT=$(echo "$BACKUP_ITEMS" | wc -w)
-                                if [ "$BACKUP_COUNT" -gt 3 ]; then
-                                    DELETE_COUNT=$((BACKUP_COUNT - 3))
-                                    echo "Deleting $DELETE_COUNT old backups..."
-                                    echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT" | xargs rm -rf
-                                    git rm -r $(echo "$BACKUP_ITEMS" | head -n "$DELETE_COUNT") 2>/dev/null
+                                BACKUP_ITEMS=$(ls -1 ${BACKUP_PATTERN} 2>/dev/null | sort -r | tail -n +4)
+                                if [ -n "$BACKUP_ITEMS" ]; then
+                                    echo "Deleting old backups..."
+                                    echo "$BACKUP_ITEMS" | xargs rm -rf
+                                    git rm -r $(echo "$BACKUP_ITEMS") 2>/dev/null
                                     git commit -m "Removed old backups, keeping only the latest 3"
                                     git push origin ${TARGET_BRANCH}
                                 else
@@ -149,6 +157,12 @@ EOPYTHON
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            sh 'rm -rf venv'
         }
     }
 }
