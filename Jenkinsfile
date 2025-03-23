@@ -231,7 +231,46 @@ for _, row in databases.iterrows():
                     print(f"🗑 Deleted old backup: {backup}")
         except subprocess.CalledProcessError as e:
             print(f"⚠️ No old backups found or error occurred: {e}")
+
+        #compare 
+        get_oldest_backup_query = f'''
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema='{db_name}' 
+            AND table_name LIKE '{table_name}_%' 
+            AND table_name NOT LIKE '%_rev_%'
+            ORDER BY table_name ASC LIMIT 1;
+        '''
+        oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query}"'
+        try:
+            oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
+            if oldest_backup:
+                print(f"🔎 Oldest retained backup: {oldest_backup}")
+
+                # Find and delete old `_rev_` backups
+                rev_backup_query = f'''
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_schema='{db_name}' 
+                    AND table_name LIKE '{table_name}_rev_%';
+                '''
+                rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
             
+                rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\\n")
+            
+                for rev_backup in rev_backups:
+                    if rev_backup:
+                        # Extract timestamps from table names
+                        normal_time = oldest_backup.replace(table_name + "_", "")
+                        rev_time = rev_backup.replace(table_name + "_rev_", "")
+                    
+                        if rev_time < normal_time:
+                            delete_rev_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{rev_backup};"'
+                            subprocess.call(delete_rev_backup, shell=True)
+                            print(f"🗑 Deleted old _rev_ backup: {rev_backup}")
+            else:
+                print(f"⚠️ No normal backups found for {table_name}, skipping _rev_ backup cleanup.")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error fetching oldest backup: {e}")
+
     # Add new columns if specified
     if columns_to_add and columns_to_add.lower() != "nan":
         columns = [col.strip() for col in columns_to_add.split(",")]
