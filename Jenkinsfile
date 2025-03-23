@@ -19,7 +19,6 @@ pipeline {
     }
 
     stages {
-        // Prepare Source Repository
         stage('Prepare Source Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -43,7 +42,6 @@ pipeline {
             }
         }
 
-        // Prepare Target Repository
         stage('Prepare Target Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -67,7 +65,6 @@ pipeline {
             }
         }
 
-        // Check if there are files to deploy
         stage('Check Deployment Files') {
             steps {
                 script {
@@ -77,7 +74,6 @@ pipeline {
             }
         }
 
-        // Backup Existing Files in Target Repo (only if deployment is needed)
         stage('Backup Existing Files in Target Repo') {
             when {
                 expression { env.SKIP_DEPLOY != "true" }
@@ -111,7 +107,6 @@ pipeline {
             }
         }
 
-        // Copy Files from Source to Target Repo (only if deployment is needed)
         stage('Copy Files from Source to Target Repo') {
             when {
                 expression { env.SKIP_DEPLOY != "true" }
@@ -144,7 +139,6 @@ pipeline {
             }
         }
 
-        // Remove Old Backups (Keep Only 3)
         stage('Remove Old Backups (Keep Only 3)') {
             when {
                 expression { env.SKIP_DEPLOY != "true" }
@@ -177,7 +171,6 @@ pipeline {
             }
         }
 
-        // Check if there are files to revert
         stage('Check Revert Files') {
             steps {
                 script {
@@ -187,7 +180,6 @@ pipeline {
             }
         }
 
-        // Revert Files/Folders (only if revert is needed)
         stage('Revert Files/Folders') {
             when {
                 expression { env.SKIP_REVERT != "true" }
@@ -219,6 +211,18 @@ pipeline {
                         git commit -m "Reverted files based on ${FILES_TO_REVERT}"
                         git push origin ${TARGET_BRANCH}
                     '''
+                }
+            }
+        }
+
+        stage('Success Message') {
+            steps {
+                script {
+                    if (env.SKIP_DEPLOY == "true" && env.SKIP_REVERT == "true") {
+                        echo "No deployment or revert actions were needed. Skipping process."
+                    } else {
+                        echo "Deployment and/or Revert process completed successfully!"
+                    }
                 }
             }
         }
