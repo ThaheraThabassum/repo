@@ -108,6 +108,31 @@ pipeline {
             }
         }
         
+        stage('Copy Files from Source to Target Repo') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        cd ${TARGET_REPO_DIR}
+                        git checkout ${TARGET_BRANCH}
+                        echo "Copying files from source repo to target repo..."
+                        while IFS= read -r item || [ -n "$item" ]; do
+                            if [ -n "$item" ]; then
+                                cp -rp ../${SOURCE_REPO_DIR}/"$item" .
+                                chmod -R 777 "$item"
+                                git add "$item"
+                            fi
+                        done < ${FILES_LIST_FILE}
+                        if git diff --cached --quiet; then
+                            echo "No changes to commit in file copy."
+                        else
+                            git commit -m "Copied files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+                            git push origin ${TARGET_BRANCH}
+                        fi
+                    '''
+                }
+            }
+        }
+        
         stage('Revert Process if Required') {
             steps {
                 script {
