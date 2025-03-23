@@ -149,14 +149,14 @@ pipeline {
                 sshagent(credentials: [UAT_SSH_KEY]) {
                     sh '''
                         echo "Connecting to UAT server ${REMOTE_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
-                            echo "Successfully connected to ${REMOTE_HOST}"
-                            cd /home/ubuntu/ACE-Camunda/
-                            echo "Pulling latest changes from Git..."
-                            sudo git pull 
-                            echo "Restarting Docker containers..."
-                            sudo docker-compose up --build -d --force-recreate
-                            echo "Deployment completed."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
+                        echo "Successfully connected to ${REMOTE_HOST}"
+                        cd /home/ubuntu/ACE-Camunda/
+                        echo "Pulling latest changes from Git..."
+                        sudo git pull 
+                        echo "Restarting Docker containers..."
+                        sudo docker-compose up --build -d --force-recreate
+                        echo "Deployment completed."
                         EOF
                     '''
                 }
