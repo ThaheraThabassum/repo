@@ -11,8 +11,8 @@ pipeline {
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
         WORKSPACE_DIR = "${WORKSPACE}"
-        REMOTE_USER = 'thahera'         // Change to UAT SSH username
-        REMOTE_HOST = '65.1.176.9' // Change to UAT server IP
+        REMOTE_USER = 'thahera'         
+        REMOTE_HOST = '65.1.176.9' 
     }
     stages {
         stage('Prepare Source Repository') {
