@@ -212,11 +212,12 @@ for _, row in databases.iterrows():
         subprocess.call(backup_data, shell=True)
         print(f"✅ Backup created: {backup_table}")
 
-        # Delete old backups, including both normal and rev backups, keeping only the last 3
+        # Delete old backups (excluding `_rev_` backups)
         cleanup_query = f'''
         SELECT table_name FROM information_schema.tables 
         WHERE table_schema='{db_name}' 
-        AND (table_name LIKE '{table_name}_%' OR table_name LIKE '{table_name}_rev_%')
+        AND table_name LIKE '{table_name}_%' 
+        AND table_name NOT LIKE '%_rev_%'  -- Exclude _rev_ backups
         ORDER BY table_name DESC LIMIT 3, 100;
         '''
         cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
