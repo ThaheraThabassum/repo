@@ -1,23 +1,17 @@
 pipeline {
     agent any
     environment {
-        // Source and Target Repo Details
         SOURCE_REPO = 'git@github.com:algonox/ACE-Camunda.git'
         SOURCE_BRANCH = 'kmb'
         TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         TARGET_BRANCH = 'kmb_uat'
         SSH_KEY = 'jenkins-ssh-key1'
-
-        // File Handling
-        FILES_TO_DEPLOY = "files_to_deploy.txt"
-        FILES_TO_REVERT = "files_to_revert.txt"
-
-        // Workspace
+        FILES_DEPLOY_LIST_FILE = "files_to_deploy.txt"
+        FILES_REVERT_LIST_FILE = "files_to_revert.txt"
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
         WORKSPACE_DIR = "${WORKSPACE}"
     }
-
     stages {
         stage('Prepare Source Repository') {
             steps {
@@ -41,7 +35,6 @@ pipeline {
                 }
             }
         }
-
         stage('Prepare Target Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -64,19 +57,11 @@ pipeline {
                 }
             }
         }
-
-        stage('Check Deployment Files') {
-            steps {
-                script {
-                    def deployFileExists = sh(script: "test -s ${WORKSPACE_DIR}/${FILES_TO_DEPLOY} && echo 'yes' || echo 'no'", returnStdout: true).trim()
-                    env.SKIP_DEPLOY = (deployFileExists == 'no') ? "true" : "false"
-                }
-            }
-        }
-
-        stage('Backup Existing Files in Target Repo') {
+        stage('Deploy Files (if list not empty)') {
             when {
-                expression { env.SKIP_DEPLOY != "true" }
+                expression {
+                    fileExists(path: "${FILES_DEPLOY_LIST_FILE}") && readFile(file: "${FILES_DEPLOY_LIST_FILE}").trim() != ''
+                }
             }
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -85,7 +70,7 @@ pipeline {
                         git checkout ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH}
 
-                        cp ${WORKSPACE_DIR}/${FILES_TO_DEPLOY} .
+                        cp ${WORKSPACE_DIR}/${FILES_DEPLOY_LIST_FILE} .
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                         while IFS= read -r item || [ -n "$item" ]; do
@@ -94,7 +79,7 @@ pipeline {
                                 cp -rp "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
                             fi
-                        done < ${FILES_TO_DEPLOY}
+                        done < ${FILES_DEPLOY_LIST_FILE}
 
                         if git diff --cached --quiet; then
                             echo "No changes to commit in backup."
@@ -102,22 +87,8 @@ pipeline {
                             git commit -m "Backup created on $TIMESTAMP"
                             git push origin ${TARGET_BRANCH}
                         fi
-                    '''
-                }
-            }
-        }
 
-        stage('Copy Files from Source to Target Repo') {
-            when {
-                expression { env.SKIP_DEPLOY != "true" }
-            }
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        cd ${TARGET_REPO_DIR}
-                        git checkout ${TARGET_BRANCH}
-
-                        echo "${FILES_TO_DEPLOY}" >> .gitignore
+                        echo "${FILES_DEPLOY_LIST_FILE}" >> .gitignore
                         git add .gitignore
 
                         while IFS= read -r item || [ -n "$item" ]; do
@@ -126,7 +97,7 @@ pipeline {
                                 chmod -R 777 "$item"
                                 git add -A
                             fi
-                        done < ${FILES_TO_DEPLOY}
+                        done < ${FILES_DEPLOY_LIST_FILE}
 
                         if git diff --cached --quiet; then
                             echo "No changes to commit in file copy."
@@ -134,27 +105,11 @@ pipeline {
                             git commit -m "Copied files from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
                             git push origin ${TARGET_BRANCH}
                         fi
-                    '''
-                }
-            }
-        }
-
-        stage('Remove Old Backups (Keep Only 3)') {
-            when {
-                expression { env.SKIP_DEPLOY != "true" }
-            }
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        cd ${TARGET_REPO_DIR}
-                        git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
 
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 echo "Checking backups for $item..."
                                 BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -3)
-
                                 if [ -n "$BACKUP_ITEMS" ]; then
                                     echo "Deleting old backups..."
                                     echo "$BACKUP_ITEMS" | xargs rm -rf
@@ -165,64 +120,61 @@ pipeline {
                                     echo "No old backups to delete."
                                 fi
                             fi
-                        done < ${FILES_TO_DEPLOY}
+                        done < ${FILES_DEPLOY_LIST_FILE}
                     '''
                 }
             }
         }
-
-        stage('Check Revert Files') {
-            steps {
-                script {
-                    def revertFileExists = sh(script: "test -s ${WORKSPACE_DIR}/${FILES_TO_REVERT} && echo 'yes' || echo 'no'", returnStdout: true).trim()
-                    env.SKIP_REVERT = (revertFileExists == 'no') ? "true" : "false"
-                }
-            }
-        }
-
-        stage('Revert Files/Folders') {
+        stage('Revert Files (if list not empty)') {
             when {
-                expression { env.SKIP_REVERT != "true" }
+                expression {
+                    fileExists(path: "${FILES_REVERT_LIST_FILE}") && readFile(file: "${FILES_REVERT_LIST_FILE}").trim() != ''
+                }
             }
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd ${TARGET_REPO_DIR}
                         git checkout ${TARGET_BRANCH}
-                        git pull origin ${TARGET_BRANCH}
+                        git pull --rebase=false origin ${TARGET_BRANCH}
 
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+
+                        echo "Reverting files/folders..."
+                        cp ${WORKSPACE_DIR}/${FILES_REVERT_LIST_FILE} .
 
                         while IFS= read -r item; do
                             if [ -e "$item" ]; then
                                 BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
+                                echo "Backing up $item -> $BACKUP_ITEM"
                                 mv "$item" "$BACKUP_ITEM"
                                 git add "$BACKUP_ITEM"
 
                                 LATEST_BACKUP=$(ls -td ${item}_* | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
 
                                 if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
+                                    echo "Restoring latest backup: $LATEST_BACKUP -> $item"
                                     mv "$LATEST_BACKUP" "$item"
                                     git add "$item"
+                                else
+                                    echo "No valid backup found for $item, skipping restore."
                                 fi
-                            fi
-                        done < ${FILES_TO_REVERT}
 
-                        git commit -m "Reverted files based on ${FILES_TO_REVERT}"
+                                echo "Cleaning up old _rev_ backups for $item..."
+                                OLD_BACKUPS=$(ls -td ${item}_rev_* | tail -n +3)
+                                if [ -n "$OLD_BACKUPS" ]; then
+                                    echo "Deleting old backups: $OLD_BACKUPS"
+                                    rm -rf $OLD_BACKUPS
+                                    git rm -r $OLD_BACKUPS
+                                fi
+                            else
+                                echo "File/folder $item not found, skipping."
+                            fi
+                        done < ${FILES_REVERT_LIST_FILE}
+
+                        git commit -m "Reverted files based on ${FILES_REVERT_LIST_FILE} and cleaned old backups"
                         git push origin ${TARGET_BRANCH}
                     '''
-                }
-            }
-        }
-
-        stage('Success Message') {
-            steps {
-                script {
-                    if (env.SKIP_DEPLOY == "true" && env.SKIP_REVERT == "true") {
-                        echo "No deployment or revert actions were needed. Skipping process."
-                    } else {
-                        echo "Deployment and/or Revert process completed successfully!"
-                    }
                 }
             }
         }
