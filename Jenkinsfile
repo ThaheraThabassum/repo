@@ -89,7 +89,7 @@ pipeline {
                                 git add "$BACKUP_ITEM"
 
                                 # Keep only the latest 3 backups
-                                BACKUP_ITEMS=$(ls -t ${item}_* 2>/dev/null | tail -n +4)
+                                BACKUP_ITEMS=$(ls -t ${item}_* 2>/dev/null | grep -v "_rev_" | tail -n +4)
                                 if [ -n "$BACKUP_ITEMS" ]; then
                                     echo "Deleting old backups..."
                                     echo "$BACKUP_ITEMS" | xargs rm -rf
@@ -135,15 +135,6 @@ pipeline {
         
         stage('Revert Process if Required') {
             steps {
-                script {
-                    if (fileExists(REVERT_FILES_LIST)) {
-                        def revertFiles = readFile(REVERT_FILES_LIST).trim()
-                        if (revertFiles == '') {
-                            echo "No files to revert, skipping revert process."
-                            return
-                        }
-                    }
-                }
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd ${TARGET_REPO_DIR}
@@ -157,13 +148,13 @@ pipeline {
                             if [ -n "$item" ] && [ -e "$item" ]; then
                                 TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                                 mv "$item" "${item}_rev_$TIMESTAMP"
-                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | head -n 1)
+                                LATEST_BACKUP=$(ls -t ${item}_* 2>/dev/null | grep -v "_rev_" | head -n 1)
                                 if [ -n "$LATEST_BACKUP" ]; then
                                     mv "$LATEST_BACKUP" "$item"
                                     git add "$item"
                                     echo "Reverted $item to latest backup."
                                 else
-                                    echo "No backup found for $item."
+                                    echo "No valid backup found for $item."
                                 fi
                             fi
                         done < ${WORKSPACE_DIR}/${REVERT_FILES_LIST}
