@@ -154,8 +154,7 @@ pipeline {
                             echo "Successfully connected to ${REMOTE_HOST}"
                             cd /home/ubuntu/ACE-Camunda-DevOps/
                             echo "Pulling latest changes from Git using Jenkins-stored credentials..."
-                            echo "\n" | git pull https://${GITHUB_TOKEN}:@github.com/algonox/ACE-Camunda-DevOps.git
-                            echo "Restarting Docker containers..."
+                            echo "\n" | git pull https://${GITHUB_TOKEN}:@github.com/algonox/ACE-Camunda-DevOps.git ${TARGET_BRANCH}                            echo "Restarting Docker containers..."
                             sudo docker-compose up --build -d --force-recreate
                             echo "Deployment completed."
                             EOF
