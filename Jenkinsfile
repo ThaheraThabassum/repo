@@ -159,6 +159,7 @@ pipeline {
                             echo "Restarting Docker containers..."
                             sudo docker-compose up --build -d --force-recreate
                             echo "Deployment completed."
+                            exit
                             EOF
                         '''
                     }
