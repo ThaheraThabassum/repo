@@ -127,7 +127,7 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 echo "Checking backups for $item..."
-                                BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -3)
+                                BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -4)
 
                                 if [ -n "$BACKUP_ITEMS" ]; then
                                     echo "Deleting old backups..."
