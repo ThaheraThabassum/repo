@@ -153,7 +153,7 @@ pipeline {
                         echo "Successfully connected to ${REMOTE_HOST}"
                         cd /home/ubuntu/ACE-Camunda/
                         echo "Pulling latest changes from Git..."
-                        GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git pull 
+                        sudo git pull 
                         echo "Restarting Docker containers..."
                         sudo docker-compose up --build -d --force-recreate
                         echo "Deployment completed."
