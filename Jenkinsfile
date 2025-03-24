@@ -5,7 +5,7 @@ pipeline {
         SOURCE_BRANCH = 'kmb'
         TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         TARGET_BRANCH = 'kmb_uat'
-        SSH_KEY = 'jenkins-ssh-key1'  // For repo access
+        SSH_KEY = 'jenkins-ssh-key1' 
         UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // For UAT SSH connection
         FILES_LIST_FILE = "files_to_deploy.txt"
         SOURCE_REPO_DIR = 'kmb_local'
