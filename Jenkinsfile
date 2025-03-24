@@ -153,13 +153,6 @@ pipeline {
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
                             echo "Successfully connected to ${REMOTE_HOST}"
                             cd /home/ubuntu/ACE-Camunda-DevOps/
-                            echo "Ensuring correct branch is checked out..."
-                            git checkout ${TARGET_BRANCH}
-
-                            echo "Resetting local changes and pulling latest updates..."
-                            git fetch --all
-                            git reset --hard origin/${TARGET_BRANCH}
-                            git clean -fd
                             echo "Pulling latest changes from Git using Jenkins-stored credentials..."
                             echo "\n" | git pull https://${GITHUB_TOKEN}:@github.com/algonox/ACE-Camunda-DevOps.git ${TARGET_BRANCH}                            echo "Restarting Docker containers..."
                             sudo docker-compose up --build -d --force-recreate
