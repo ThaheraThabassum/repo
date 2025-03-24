@@ -144,21 +144,25 @@ pipeline {
                 }
             }
         }
-        stage('Connect to UAT Server via SSH') {
+        stage('Deploy to UAT Server') {
             steps {
-                sshagent(credentials: [UAT_SSH_KEY]) {
-                    sh '''
-                        echo "Connecting to UAT server ${REMOTE_HOST}..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
-                        echo "Successfully connected to ${REMOTE_HOST}"
-                        cd /home/ubuntu/ACE-Camunda-DevOps/
-                        echo "Pulling latest changes from Git..."
-                        sudo git pull https://github.com/algonox/ACE-Camunda.git 
-                        echo "Restarting Docker containers..."
-                        sudo docker-compose up --build -d --force-recreate
-                        echo "Deployment completed."
-                        EOF
-                    '''
+                withCredentials([string(credentialsId: 'GITHUB_PAT', variable: 'GITHUB_TOKEN')]) {
+                    sshagent(credentials: [UAT_SSH_KEY]) {
+                        sh '''
+                            echo "Connecting to UAT server ${REMOTE_HOST}..."
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
+                            echo "Successfully connected to ${REMOTE_HOST}"
+                            cd /home/ubuntu/ACE-Camunda-DevOps/
+                            echo "Pulling latest changes from Git using Jenkins-stored credentials..."
+                            
+                            git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" pull https://github.com/algonox/ACE-Camunda.git
+
+                            echo "Restarting Docker containers..."
+                            sudo docker-compose up --build -d --force-recreate
+                            echo "Deployment completed."
+                            EOF
+                        '''
+                    }
                 }
             }
         }
