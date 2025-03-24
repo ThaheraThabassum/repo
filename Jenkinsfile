@@ -6,6 +6,9 @@ pipeline {
         SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_revert.txt"
         WORKSPACE_DIR = "${WORKSPACE}"
+        REMOTE_USER = 'thahera'         
+        REMOTE_HOST = '65.1.176.9'
+        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
     }
     stages {
         stage('Prepare Repository') {
@@ -80,6 +83,28 @@ pipeline {
                         git commit -m "Reverted files based on ${FILES_LIST_FILE} and cleaned old backups"
                         git push origin ${TARGET_BRANCH}
                     '''
+                }
+            }
+        }
+        stage('Deploy to UAT Server') {
+            steps {
+                withCredentials([string(credentialsId: 'GITHUB_PAT', variable: 'GITHUB_TOKEN')]) {
+                    sshagent(credentials: [UAT_SSH_KEY]) {
+                        sh '''
+                            echo "Connecting to UAT server ${REMOTE_HOST}..."
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
+                            echo "Successfully connected to ${REMOTE_HOST}"
+                            cd /home/ubuntu/ACE-Camunda-DevOps/
+                            echo "Pulling latest changes from Git using Jenkins-stored credentials..."
+                            echo "\n" | sudo git pull https://${GITHUB_TOKEN}@github.com/algonox/ACE-Camunda-DevOps.git ${TARGET_BRANCH}
+
+                            echo "Restarting Docker containers..."
+                            sudo docker-compose up --build -d --force-recreate
+                            echo "Deployment completed."
+                            exit
+                            EOF
+                        '''
+                    }
                 }
             }
         }
