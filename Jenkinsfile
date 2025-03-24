@@ -153,7 +153,7 @@ pipeline {
                         echo "Successfully connected to ${REMOTE_HOST}"
                         cd /home/ubuntu/ACE-Camunda-DevOps/
                         echo "Pulling latest changes from Git..."
-                        sudo git pull 
+                        sudo git pull https://github.com/algonox/ACE-Camunda.git 
                         echo "Restarting Docker containers..."
                         sudo docker-compose up --build -d --force-recreate
                         echo "Deployment completed."
