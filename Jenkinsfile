@@ -5,14 +5,14 @@ pipeline {
         SOURCE_BRANCH = 'kmb'
         TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         TARGET_BRANCH = 'kmb_uat'
-        SSH_KEY = 'jenkins-ssh-key1'
-        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
+        SSH_KEY = 'jenkins-ssh-key1' 
+        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // For UAT SSH connection
         FILES_LIST_FILE = "files_to_deploy.txt"
         SOURCE_REPO_DIR = 'kmb_local'
         TARGET_REPO_DIR = 'kmb_uat'
         WORKSPACE_DIR = "${WORKSPACE}"
-        REMOTE_USER = 'thahera'
-        REMOTE_HOST = '65.1.176.9'
+        REMOTE_USER = 'thahera'         
+        REMOTE_HOST = '65.1.176.9' 
     }
     stages {
         stage('Prepare Source Repository') {
@@ -116,7 +116,7 @@ pipeline {
                 }
             }
         }
-        stage('Remove Old Backups and Cleanup Rev Backups') {
+        stage('Remove Old Backups (Keep Only 3)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
@@ -127,38 +127,16 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 echo "Checking backups for $item..."
+                                BACKUP_ITEMS=$(find . -maxdepth 1 -name "${item}_*" | sort | head -n -3)
 
-                                # Get the 3 latest normal backups
-                                NORMAL_BACKUPS=$(find . -maxdepth 1 -name "${item}_*" ! -name "*_rev_*" | sort | tail -n 3)
-
-                                # Extract the oldest timestamp among these 3
-                                OLDEST_NORMAL_BACKUP=$(echo "$NORMAL_BACKUPS" | head -n 1 | awk -F_ '{print $(NF-2) $(NF-1) $(NF)}')
-
-                                # Remove old normal backups beyond the latest 3
-                                OLD_BACKUPS=$(find . -maxdepth 1 -name "${item}_*" ! -name "*_rev_*" | sort | head -n -3)
-                                if [ -n "$OLD_BACKUPS" ]; then
+                                if [ -n "$BACKUP_ITEMS" ]; then
                                     echo "Deleting old backups..."
-                                    echo "$OLD_BACKUPS" | xargs rm -rf
-                                    echo "$OLD_BACKUPS" | xargs git rm -r --ignore-unmatch
-                                fi
-
-                                # Check rev backups
-                                REV_BACKUPS=$(find . -maxdepth 1 -name "${item}_rev_*" | sort)
-                                for rev in $REV_BACKUPS; do
-                                    REV_TIMESTAMP=$(echo "$rev" | awk -F_ '{print $(NF-2) $(NF-1) $(NF)}')
-                                    if [ "$REV_TIMESTAMP" -lt "$OLDEST_NORMAL_BACKUP" ]; then
-                                        echo "Deleting old rev backup: $rev"
-                                        rm -rf "$rev"
-                                        git rm -r --ignore-unmatch "$rev"
-                                    fi
-                                done
-
-                                # Commit changes if necessary
-                                if git diff --cached --quiet; then
-                                    echo "No changes to commit in cleanup."
-                                else
-                                    git commit -m "Cleaned up old backups and rev backups"
+                                    echo "$BACKUP_ITEMS" | xargs rm -rf
+                                    echo "$BACKUP_ITEMS" | xargs git rm -r --ignore-unmatch
+                                    git commit -m "Removed old backups, keeping only the latest 3"
                                     git push origin ${TARGET_BRANCH}
+                                else
+                                    echo "No old backups to delete."
                                 fi
                             fi
                         done < ${FILES_LIST_FILE}
@@ -175,7 +153,7 @@ pipeline {
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
                             echo "Successfully connected to ${REMOTE_HOST}"
                             cd /home/ubuntu/ACE-Camunda-DevOps/
-                            echo "Pulling latest changes from Git..."
+                            echo "Pulling latest changes from Git using Jenkins-stored credentials..."
                             echo "\n" | sudo git pull https://${GITHUB_TOKEN}@github.com/algonox/ACE-Camunda-DevOps.git ${TARGET_BRANCH}
 
                             echo "Restarting Docker containers..."
