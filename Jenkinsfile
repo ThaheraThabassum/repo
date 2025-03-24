@@ -16,10 +16,21 @@ pipeline {
         stage('Read Excel and Transfer Builds') {
             steps {
                 script {
-                    def excelData = readExcel file: LOCAL_EXCEL_FILE
-                    excelData.each { row ->
-                        def buildName = row[0]  // First column in Excel contains the build name
-                        transferBuild(buildName)
+                    try {
+                        def excelData = readExcel file: LOCAL_EXCEL_FILE
+                        if (excelData.isEmpty()) {
+                            error "Excel file is empty or couldn't be read!"
+                        }
+                        excelData.each { row ->
+                            def buildName = row[0]?.trim()
+                            if (buildName) {
+                                transferBuild(buildName)
+                            } else {
+                                echo "Skipping empty row in Excel."
+                            }
+                        }
+                    } catch (Exception e) {
+                        error "Failed to read Excel file: ${e.message}"
                     }
                 }
             }
@@ -33,8 +44,17 @@ def transferBuild(buildName) {
             sshagent(credentials: [env.UAT_SSH_KEY]) {
                 script {
                     sh """
-                        git archive --remote=${env.GIT_REPO} ${env.GIT_BRANCH} ${buildName}.zip | tar -x
-                        scp -o StrictHostKeyChecking=no ${buildName}.zip ${env.REMOTE_USER}@${env.REMOTE_HOST}:${env.TARGET_PATH}/
+                        set -e
+                        echo "Fetching ${buildName}.zip from Git repository..."
+                        git archive --format=zip --remote=${env.GIT_REPO} ${env.GIT_BRANCH} ${buildName}.zip -o ${buildName}.zip
+
+                        if [ -f ${buildName}.zip ]; then
+                            echo "Transferring ${buildName}.zip to ${env.REMOTE_HOST}..."
+                            scp -o StrictHostKeyChecking=no ${buildName}.zip ${env.REMOTE_USER}@${env.REMOTE_HOST}:${env.TARGET_PATH}/
+                            echo "Transfer completed for ${buildName}."
+                        else
+                            echo "Build ${buildName}.zip not found, skipping transfer."
+                        fi
                     """
                 }
             }
