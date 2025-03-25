@@ -226,7 +226,6 @@ for _, row in databases.iterrows():
                 print(f"✅ Column added: {column}")
                 changes_made = True
 
-
     # Modify column data types if specified
     if datatype_changes and datatype_changes.lower() != "nan":
         datatype_changes_list = [change.strip() for change in datatype_changes.split(",")]
@@ -253,7 +252,8 @@ for _, row in databases.iterrows():
 
         if result == 0:  # Check if script executed successfully
             print(f"✅ Successfully loaded script: {script_file}")
-        
+            changes_made = True
+            
     if changes_made:
         # Delete old backups (excluding `_rev_` backups)
         cleanup_query = f'''
