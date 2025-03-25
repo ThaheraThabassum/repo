@@ -238,67 +238,72 @@ for _, row in databases.iterrows():
 
     script_file = next((s for s in script_files if s.startswith(table_name)), None)
     if script_file:
-        subprocess.call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
-        print(f"✅ Loaded script: {script_file}")
+        script_load_command = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}"
+        result = subprocess.call(script_load_command, shell=True)
 
-        # Delete old backups (excluding `_rev_` backups)
-        cleanup_query = f'''
-        SELECT table_name FROM information_schema.tables 
-        WHERE table_schema='{db_name}' 
-        AND table_name LIKE '{table_name}_%' 
-        AND table_name NOT LIKE '%_rev_%'  -- Exclude _rev_ backups
-        ORDER BY table_name DESC LIMIT 3, 100;
-        '''
-        cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
-
-        try:
-            old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\\n")
-            for backup in old_backups:
-                if backup:
-                    delete_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{backup};"'
-                    subprocess.call(delete_backup, shell=True)
-                    print(f"🗑 Deleted old backup: {backup}")
-        except subprocess.CalledProcessError as e:
-            print(f"⚠️ No old backups found or error occurred: {e}")
-
-        #compare 
-        get_oldest_backup_query = f'''
+        if result == 0:  # Check if script executed successfully
+            print(f"✅ Successfully loaded script: {script_file}")
+        
+            # Delete old backups (excluding `_rev_` backups)
+            cleanup_query = f'''
             SELECT table_name FROM information_schema.tables 
             WHERE table_schema='{db_name}' 
             AND table_name LIKE '{table_name}_%' 
-            AND table_name NOT LIKE '%_rev_%'
-            ORDER BY table_name ASC LIMIT 1;
-        '''
-        oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query}"'
-        try:
-            oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
-            if oldest_backup:
-                print(f"🔎 Oldest retained backup: {oldest_backup}")
+            AND table_name NOT LIKE '%_rev_%'  -- Exclude _rev_ backups
+            ORDER BY table_name DESC LIMIT 3, 100;
+            '''
+            cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
 
-                # Find and delete old `_rev_` backups
-                rev_backup_query = f'''
-                    SELECT table_name FROM information_schema.tables 
-                    WHERE table_schema='{db_name}' 
-                    AND table_name LIKE '{table_name}_rev_%';
-                '''
-                rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
+            try:
+                old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\\n")
+                for backup in old_backups:
+                    if backup:
+                        delete_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{backup};"'
+                        subprocess.call(delete_backup, shell=True)
+                        print(f"🗑 Deleted old backup: {backup}")
+            except subprocess.CalledProcessError as e:
+                print(f"⚠️ No old backups found or error occurred: {e}")
+
+            #compare 
+            get_oldest_backup_query = f'''
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema='{db_name}' 
+                AND table_name LIKE '{table_name}_%' 
+                AND table_name NOT LIKE '%_rev_%'
+                ORDER BY table_name ASC LIMIT 1;
+            '''
+            oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query}"'
+            try:
+                oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
+                if oldest_backup:
+                    print(f"🔎 Oldest retained backup: {oldest_backup}")
+
+                    # Find and delete old `_rev_` backups
+                    rev_backup_query = f'''
+                        SELECT table_name FROM information_schema.tables 
+                        WHERE table_schema='{db_name}' 
+                        AND table_name LIKE '{table_name}_rev_%';
+                    '''
+                    rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
             
-                rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\\n")
+                    rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\\n")
             
-                for rev_backup in rev_backups:
-                    if rev_backup:
-                        # Extract timestamps from table names
-                        normal_time = oldest_backup.replace(table_name + "_", "")
-                        rev_time = rev_backup.replace(table_name + "_rev_", "")
+                    for rev_backup in rev_backups:
+                        if rev_backup:
+                            # Extract timestamps from table names
+                            normal_time = oldest_backup.replace(table_name + "_", "")
+                            rev_time = rev_backup.replace(table_name + "_rev_", "")
                     
-                        if rev_time < normal_time:
-                            delete_rev_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{rev_backup};"'
-                            subprocess.call(delete_rev_backup, shell=True)
-                            print(f"🗑 Deleted old _rev_ backup: {rev_backup}")
-            else:
-                print(f"⚠️ No normal backups found for {table_name}, skipping _rev_ backup cleanup.")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error fetching oldest backup: {e}")
+                            if rev_time < normal_time:
+                                delete_rev_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{rev_backup};"'
+                                subprocess.call(delete_rev_backup, shell=True)
+                                print(f"🗑 Deleted old _rev_ backup: {rev_backup}")
+                else:
+                    print(f"⚠️ No normal backups found for {table_name}, skipping _rev_ backup cleanup.")
+            except subprocess.CalledProcessError as e:
+                print(f"❌ Error fetching oldest backup: {e}")
+        else:
+            print(f"❌ Failed to load script: {script_file}. Skipping backup deletion.")
 
         
 EOPYTHON
