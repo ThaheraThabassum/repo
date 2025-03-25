@@ -4,7 +4,7 @@ pipeline {
     environment {
         SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
         REMOTE_USER = 'thahera'
-        REMOTE_HOST = '3.111.252.210'
+        REMOTE_HOST = '43.205.56.101'
         DEST_HOST = '43.205.56.101'
         LOCAL_EXCEL_FILE = "db_config.xlsx"
         REMOTE_EXCEL_PATH = "/home/thahera/db_config.xlsx"
@@ -19,7 +19,7 @@ pipeline {
             steps {
                 script {
                     echo "Checking out main branch..."
-                    sh 'git checkout kotak_db'
+                    sh 'git checkout kotak_PROD_db'
                 }
             }
         }
@@ -31,7 +31,7 @@ pipeline {
                     sh """
                         git reset --hard
                         git clean -fd
-                        git pull origin kotak_db  # Change 'main' if using a different branch
+                        git pull origin kotak_PROD_db  # Change 'main' if using a different branch
                     """
                 }
             }
