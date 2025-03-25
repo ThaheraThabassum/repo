@@ -212,6 +212,35 @@ for _, row in databases.iterrows():
         subprocess.call(backup_data, shell=True)
         print(f"✅ Backup created: {backup_table}")
 
+    # Add new columns if specified
+    if columns_to_add and columns_to_add.lower() != "nan":
+        columns = [col.strip() for col in columns_to_add.split(",")]
+        for column in columns:
+            add_column_query = f'ALTER TABLE {db_name}.{table_name} ADD COLUMN {column};'
+            subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{add_column_query}"', shell=True)
+            print(f"✅ Column added: {column}")
+
+    # Modify column data types if specified
+    if datatype_changes and datatype_changes.lower() != "nan":
+        datatype_changes_list = [change.strip() for change in datatype_changes.split(",")]
+        for change in datatype_changes_list:
+            modify_column_query = f'ALTER TABLE {db_name}.{table_name} MODIFY COLUMN {change};'
+            subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{modify_column_query}"', shell=True)
+            print(f"✅ Column datatype modified: {change}")
+
+    
+    if option == "data":
+        delete_query = f"DELETE FROM {db_name}.{table_name}" if not where_condition or where_condition.lower() == "nan" else f"DELETE FROM {db_name}.{table_name} WHERE {where_condition}"
+        subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{delete_query}"', shell=True)
+
+    elif option == "structure":
+        subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{table_name};"', shell=True)
+
+    script_file = next((s for s in script_files if s.startswith(table_name)), None)
+    if script_file:
+        subprocess.call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
+        print(f"✅ Loaded script: {script_file}")
+
         # Delete old backups (excluding `_rev_` backups)
         cleanup_query = f'''
         SELECT table_name FROM information_schema.tables 
@@ -271,34 +300,6 @@ for _, row in databases.iterrows():
         except subprocess.CalledProcessError as e:
             print(f"❌ Error fetching oldest backup: {e}")
 
-    # Add new columns if specified
-    if columns_to_add and columns_to_add.lower() != "nan":
-        columns = [col.strip() for col in columns_to_add.split(",")]
-        for column in columns:
-            add_column_query = f'ALTER TABLE {db_name}.{table_name} ADD COLUMN {column};'
-            subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{add_column_query}"', shell=True)
-            print(f"✅ Column added: {column}")
-
-    # Modify column data types if specified
-    if datatype_changes and datatype_changes.lower() != "nan":
-        datatype_changes_list = [change.strip() for change in datatype_changes.split(",")]
-        for change in datatype_changes_list:
-            modify_column_query = f'ALTER TABLE {db_name}.{table_name} MODIFY COLUMN {change};'
-            subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{modify_column_query}"', shell=True)
-            print(f"✅ Column datatype modified: {change}")
-
-    
-    if option == "data":
-        delete_query = f"DELETE FROM {db_name}.{table_name}" if not where_condition or where_condition.lower() == "nan" else f"DELETE FROM {db_name}.{table_name} WHERE {where_condition}"
-        subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{delete_query}"', shell=True)
-
-    elif option == "structure":
-        subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{table_name};"', shell=True)
-
-    script_file = next((s for s in script_files if s.startswith(table_name)), None)
-    if script_file:
-        subprocess.call(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' {db_name} < /home/thahera/{script_file}", shell=True)
-        print(f"✅ Loaded script: {script_file}")
         
 EOPYTHON
 EOF
