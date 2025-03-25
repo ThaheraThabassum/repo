@@ -1,15 +1,15 @@
 pipeline {
     agent any
     environment {
-        SOURCE_REPO = 'git@github.com:algonox/ACE-Camunda.git'
-        SOURCE_BRANCH = 'kmb'
+        SOURCE_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
+        SOURCE_BRANCH = 'kmb_uat'
         TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
-        TARGET_BRANCH = 'kmb_uat'
+        TARGET_BRANCH = ''
         SSH_KEY = 'jenkins-ssh-key1' 
         UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // For UAT SSH connection
         FILES_LIST_FILE = "files_to_deploy.txt"
-        SOURCE_REPO_DIR = 'kmb_local'
-        TARGET_REPO_DIR = 'kmb_uat'
+        SOURCE_REPO_DIR = 'kmb_uat'
+        TARGET_REPO_DIR = 'kmb'
         WORKSPACE_DIR = "${WORKSPACE}"
         REMOTE_USER = 'thahera'         
         REMOTE_HOST = '65.1.176.9' 
