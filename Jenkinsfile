@@ -100,8 +100,9 @@ pipeline {
 
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
-                                cp -rp ../${SOURCE_REPO_DIR}/"$item" .
-                                chmod -R 777 "$item"
+                                DEST_DIR=$(dirname "$item")
+                                cp -rp ../${SOURCE_REPO_DIR}/"$item" "$DEST_DIR/"
+                                chmod -R 777 "$DEST_DIR"  
                                 git add -A
                             fi
                         done < ${FILES_LIST_FILE}
