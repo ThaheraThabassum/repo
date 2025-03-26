@@ -3,15 +3,16 @@ pipeline {
     environment {
         REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         SOURCE_BRANCH = 'kmb_uat'
-        TARGET_BRANCH = ''
-        SSH_KEY = 'jenkins-ssh-key1' 
-        PROD_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // For SSH connection
+        TARGET_BRANCH = 'kmb_prod'
+        SSH_KEY = 'jenkins-ssh-key1'
+        PROD_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8' // For SSH connection
         FILES_LIST_FILE = "files_to_deploy.txt"
         REPO_DIR = 'ACE-Camunda-DevOps'
         WORKSPACE_DIR = "${WORKSPACE}"
-        REMOTE_USER = 'thahera'         
-        REMOTE_HOST = '65.1.176.9' 
+        REMOTE_USER = 'thahera'
+        REMOTE_HOST = '65.1.176.9'
     }
+
     stages {
         stage('Prepare Repository') {
             steps {
@@ -35,6 +36,7 @@ pipeline {
                 }
             }
         }
+
         stage('Backup Existing Files in Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -64,24 +66,44 @@ pipeline {
                 }
             }
         }
+
         stage('Copy Files from Source to Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         cd ${REPO_DIR}
+                        
+                        # Checkout the target branch
                         git checkout ${TARGET_BRANCH}
+                        git pull origin ${TARGET_BRANCH}
+
+                        # Checkout the source branch in a temporary location
+                        git checkout ${SOURCE_BRANCH}
+                        git pull origin ${SOURCE_BRANCH}
+
+                        # Ensure the file list exists
+                        if [ ! -f "${FILES_LIST_FILE}" ]; then
+                            echo "Error: ${FILES_LIST_FILE} not found!"
+                            exit 1
+                        fi
 
                         echo "${FILES_LIST_FILE}" >> .gitignore
                         git add .gitignore
 
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
+                                # Ensure the parent directory exists in the target branch
                                 DEST_DIR=$(dirname "$item")
-                                cp -rp "${item}" "$DEST_DIR/"
-                                chmod -R 777 "$DEST_DIR"  
+                                
+                                # Copy the file from source branch to target branch
+                                git checkout ${SOURCE_BRANCH} -- "$item"
+                                chmod -R 777 "$DEST_DIR"
                                 git add -A
                             fi
                         done < ${FILES_LIST_FILE}
+
+                        # Switch back to target branch
+                        git checkout ${TARGET_BRANCH}
 
                         if git diff --cached --quiet; then
                             echo "No changes to commit in file copy."
@@ -93,6 +115,7 @@ pipeline {
                 }
             }
         }
+
         stage('Remove Old Backups (Keep Only 3)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -121,6 +144,7 @@ pipeline {
                 }
             }
         }
+
         stage('Deploy to UAT Server') {
             steps {
                 withCredentials([string(credentialsId: 'GITHUB_PAT', variable: 'GITHUB_TOKEN')]) {
