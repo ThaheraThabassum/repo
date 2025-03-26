@@ -90,6 +90,8 @@ pipeline {
                         echo "${FILES_LIST_FILE}" >> .gitignore
                         git add .gitignore
 
+                        git checkout ${TARGET_BRANCH}
+                        
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 # Ensure the parent directory exists in the target branch
