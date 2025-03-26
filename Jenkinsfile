@@ -1,35 +1,33 @@
 pipeline {
     agent any
     environment {
-        SOURCE_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
+        REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         SOURCE_BRANCH = 'kmb_uat'
-        TARGET_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         TARGET_BRANCH = ''
         SSH_KEY = 'jenkins-ssh-key1' 
-        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // For UAT SSH connection
+        PROD_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'  // For SSH connection
         FILES_LIST_FILE = "files_to_deploy.txt"
-        SOURCE_REPO_DIR = 'kmb_uat'
-        TARGET_REPO_DIR = 'kmb'
+        REPO_DIR = 'ACE-Camunda-DevOps'
         WORKSPACE_DIR = "${WORKSPACE}"
         REMOTE_USER = 'thahera'         
         REMOTE_HOST = '65.1.176.9' 
     }
     stages {
-        stage('Prepare Source Repository') {
+        stage('Prepare Repository') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Cloning or updating source repo..."
-                        if [ -d "${SOURCE_REPO_DIR}/.git" ]; then
-                            cd ${SOURCE_REPO_DIR}
+                        echo "Cloning or updating repo..."
+                        if [ -d "${REPO_DIR}/.git" ]; then
+                            cd ${REPO_DIR}
                             git fetch --all
                             git reset --hard
                             git clean -fd
                             git checkout ${SOURCE_BRANCH}
                             git pull origin ${SOURCE_BRANCH}
                         else
-                            git clone ${SOURCE_REPO} ${SOURCE_REPO_DIR}
-                            cd ${SOURCE_REPO_DIR}
+                            git clone ${REPO} ${REPO_DIR}
+                            cd ${REPO_DIR}
                             git checkout ${SOURCE_BRANCH}
                             git pull origin ${SOURCE_BRANCH}
                         fi
@@ -37,33 +35,11 @@ pipeline {
                 }
             }
         }
-        stage('Prepare Target Repository') {
+        stage('Backup Existing Files in Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Cloning or updating target repo..."
-                        if [ -d "${TARGET_REPO_DIR}/.git" ]; then
-                            cd ${TARGET_REPO_DIR}
-                            git fetch --all
-                            git reset --hard
-                            git clean -fd
-                            git checkout ${TARGET_BRANCH}
-                            git pull origin ${TARGET_BRANCH}
-                        else
-                            git clone ${TARGET_REPO} ${TARGET_REPO_DIR}
-                            cd ${TARGET_REPO_DIR}
-                            git checkout ${TARGET_BRANCH}
-                            git pull origin ${TARGET_BRANCH}
-                        fi
-                    '''
-                }
-            }
-        }
-        stage('Backup Existing Files in Target Repo') {
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        cd ${TARGET_REPO_DIR}
+                        cd ${REPO_DIR}
                         git checkout ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH}
 
@@ -88,11 +64,11 @@ pipeline {
                 }
             }
         }
-        stage('Copy Files from Source to Target Repo') {
+        stage('Copy Files from Source to Target Branch') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        cd ${TARGET_REPO_DIR}
+                        cd ${REPO_DIR}
                         git checkout ${TARGET_BRANCH}
 
                         echo "${FILES_LIST_FILE}" >> .gitignore
@@ -101,7 +77,7 @@ pipeline {
                         while IFS= read -r item || [ -n "$item" ]; do
                             if [ -n "$item" ]; then
                                 DEST_DIR=$(dirname "$item")
-                                cp -rp ../${SOURCE_REPO_DIR}/"$item" "$DEST_DIR/"
+                                cp -rp "${item}" "$DEST_DIR/"
                                 chmod -R 777 "$DEST_DIR"  
                                 git add -A
                             fi
@@ -121,7 +97,7 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        cd ${TARGET_REPO_DIR}
+                        cd ${REPO_DIR}
                         git checkout ${TARGET_BRANCH}
                         git pull origin ${TARGET_BRANCH}
 
@@ -148,7 +124,7 @@ pipeline {
         stage('Deploy to UAT Server') {
             steps {
                 withCredentials([string(credentialsId: 'GITHUB_PAT', variable: 'GITHUB_TOKEN')]) {
-                    sshagent(credentials: [UAT_SSH_KEY]) {
+                    sshagent(credentials: [PROD_SSH_KEY]) {
                         sh '''
                             echo "Connecting to UAT server ${REMOTE_HOST}..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
