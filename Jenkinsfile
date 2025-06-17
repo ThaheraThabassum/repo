@@ -5,7 +5,7 @@ pipeline {
         SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
         REMOTE_USER = 'thahera'
         REMOTE_HOST = '43.205.56.101'
-        DEST_HOST = '43.205.56.101'
+        DEST_HOST = '13.202.41.160'
         LOCAL_EXCEL_FILE = "db_config.xlsx"
         REMOTE_EXCEL_PATH = "/home/thahera/db_config.xlsx"
         MYSQL_USER = "root"
