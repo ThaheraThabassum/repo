@@ -3,7 +3,7 @@ pipeline {
     environment {
         REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
         SOURCE_BRANCH = 'kmb_uat'
-        TARGET_BRANCH = 'kmb_prod'
+        TARGET_BRANCH = 'kotak_prod'
         SSH_KEY = 'jenkins-ssh-key1'
         PROD_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8' // For SSH connection
         FILES_LIST_FILE = "files_to_deploy.txt"
