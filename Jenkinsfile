@@ -139,6 +139,7 @@ EOF
                         echo "Processing tables on ${DEST_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
                             set -e
+                            echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl python3-numpy
 
                             python3 << EOPYTHON
 import pandas as pd
