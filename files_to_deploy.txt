@@ -1,2 +1,1 @@
-reports_api/BL/app/reports_api.py
-reports_api/BL/app/generate_reports.py
+testing/testing.py
