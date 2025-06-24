@@ -3,7 +3,7 @@ pipeline {
     environment {
         FILES_LIST_FILE = "files_to_deploy.txt"
         REMOTE_USER = "thahera"
-        SOURCE_HOST = "13.111.252.210"
+        SOURCE_HOST = "3.111.252.210"
         DEST_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         SOURCE_BASE_PATH = "/home/ubuntu/ACE-Camunda"
