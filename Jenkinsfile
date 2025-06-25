@@ -69,7 +69,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
-                            echo Restarting Docker containers (if needed)...
+                            echo "Restarting Docker containers (if needed)..."
                             cd ${DEST_BASE_PATH}
                             # docker-compose down && docker-compose up -d   # Uncomment if needed
                         "
