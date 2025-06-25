@@ -47,6 +47,9 @@ pipeline {
                             echo "Transferring file from Jenkins workspace to DEST_HOST..."
                             scp -o StrictHostKeyChecking=no $TEMP_FILE ${REMOTE_USER}@${DEST_HOST}:$DEST_PATH
 
+                            echo "Setting 777 permission on DEST_HOST for transferred file..."
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 $DEST_PATH"
+
                             echo "Cleaning up temp file locally..."
                             rm -f $TEMP_FILE
 
