@@ -52,7 +52,7 @@ pipeline {
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
 
                                 echo "Transferring directory from Jenkins workspace to DEST_HOST..."
-                                scp -r -o StrictHostKeyChecking=no "$TEMP_DIR/$(basename "$SRC_PATH")" ${REMOTE_USER}@${DEST_HOST}:"$DEST_PATH"
+                                scp -r -o StrictHostKeyChecking=no "$TEMP_DIR/$(basename "$SRC_PATH")" ${REMOTE_USER}@${DEST_HOST}:"$DEST_DIR/"
 
                                 echo "Setting permissions for transferred directory..."
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 $DEST_PATH"
