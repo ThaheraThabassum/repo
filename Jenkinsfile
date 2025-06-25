@@ -101,13 +101,21 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         echo "Stopping all running Docker containers on DEST_HOST..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "docker stop \$(sudo docker ps -aq) || echo 'No running containers to stop.'"
-
-                        echo "Removing all Docker containers on DEST_HOST..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "docker rm \$(sudo docker ps -aq) || echo 'No containers to remove.'"
-
-                        echo "Restarting Docker containers on DEST_HOST..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_BASE_PATH} && sudo docker-compose up --build -d --force-recreate"
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
+                            CONTAINERS=\\$(sudo docker ps -aq)
+                            if [ -n \\\"\\$CONTAINERS\\\" ]; then
+                                echo \\\"Stopping containers...\\\"
+                                sudo docker stop \\$CONTAINERS
+                                echo \\\"Removing containers...\\\"
+                                sudo docker rm \\$CONTAINERS
+                            else
+                                echo \\\"No running containers to stop/remove.\\\"
+                            fi
+                            echo \\\"Recreating containers with docker-compose...\\\"
+                            cd ${DEST_BASE_PATH}
+                            sudo docker-compose up --build -d --force-recreate
+                        '"
+                      
                     '''
                 }
             }
