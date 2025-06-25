@@ -52,7 +52,7 @@ pipeline {
         stage('Generate and Transfer SQL Dump Files') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''
+                    sh """
                         echo "Generating SQL dump files on ${REMOTE_HOST}..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
                             set -e
@@ -88,8 +88,8 @@ for _, row in df.iterrows():
     #check_db_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE "{db_name}"\"'
     #check_db_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"SHOW DATABASES LIKE '{db_name}'\""
     #check_db_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SHOW DATABASES LIKE \'{db_name}\'"'
-    #check_db_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SHOW DATABASES LIKE \'{db_name}\'"'
-    check_db_cmd = f"""mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e 'SHOW DATABASES LIKE "{db_name}"'"""
+    check_db_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SHOW DATABASES LIKE \'{db_name}\'"'
+    #check_db_cmd = f"""mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e 'SHOW DATABASES LIKE "{db_name}"'"""
 
 
 
@@ -185,7 +185,7 @@ EOF
 
                         echo "Setting permissions for transferred files..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
-                    '''
+                    """
                 }
             }
         }
