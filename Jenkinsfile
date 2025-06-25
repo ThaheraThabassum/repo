@@ -88,7 +88,6 @@ for _, row in df.iterrows():
     #check_db_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE "{db_name}"\"'
     check_db_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"SHOW DATABASES LIKE '{db_name}'\""
 
-
     db_exists = subprocess.run(check_db_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if not db_exists:
         print(f'\u274c Skipping - Database does not exist: {db_name}')
