@@ -85,17 +85,17 @@ for _, row in df.iterrows():
     revert = str(row.get("revert", "")).strip().lower()
 
     # Validate DB
-    check_db_cmd = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE '{db_name}'\""
+    check_db_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE '{db_name}'\"'
     db_exists = subprocess.run(check_db_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if not db_exists:
-        print(f"\u274c Skipping - Database does not exist: {db_name}")
+        print(f'\u274c Skipping - Database does not exist: {db_name}')
         continue
  
     # Validate Table
-    check_table_cmd = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}'\""
+    check_table_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}'\"'
     table_exists = subprocess.run(check_table_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if table_exists != '1':
-        print(f"\u274c Skipping - Table does not exist: {db_name}.{table_name}")
+        print(f'\u274c Skipping - Table does not exist: {db_name}.{table_name}')
         continue
  
     # Validate datatype modification columns
@@ -103,10 +103,10 @@ for _, row in df.iterrows():
         modify_list = [col.strip() for col in datatype_changes.split(",")]
         for mod in modify_list:
             column_name = mod.split()[0]
-            check_col_cmd = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\""
+            check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\"'
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
             if col_exists != '1':
-                print(f"\u274c Skipping - Column '{column_name}' doesn't exist in {db_name}.{table_name} for modification")
+                print(f'\u274c Skipping - Column '{column_name}' doesn't exist in {db_name}.{table_name} for modification')
                 continue
  
     # Validate column existence before ADD
@@ -114,13 +114,13 @@ for _, row in df.iterrows():
         column_defs = [col.strip() for col in columns_to_add.split(",")]
         for col_def in column_defs:
             col_name = col_def.split()[0]
-            check_col_cmd = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\""
+            check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\"'
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
             if col_exists == '1':
-                print(f"\u26a0\ufe0f Skipping column add - Column '{col_name}' already exists in {db_name}.{table_name}")
+                print(f'\u26a0\ufe0f Skipping column add - Column '{col_name}' already exists in {db_name}.{table_name}')
                 continue:
 
-    print(f"🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes} | revert: {revert}")  # Debug Print
+    print(f'🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes} | revert: {revert}')  # Debug Print
 
     dump_file = f"{table_name}_{timestamp}.sql"
     dump_command = None
