@@ -15,7 +15,7 @@ pipeline {
         stage('Server to Server Deployment') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''
+                    sh '''#!/bin/bash
                         set -e
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
@@ -35,11 +35,10 @@ pipeline {
                             FILE_NAME=$(basename "$DEST_PATH")
 
                             echo "Checking if path is a directory on SOURCE_HOST..."
-                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"$SRC_PATH\" ] && echo yes || echo no")
+                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \\"$SRC_PATH\\" ] && echo yes || echo no")
 
                             if [ "$IS_DIR" = "yes" ]; then
                                 echo "Handling directory: $SRC_PATH"
-
                                 TEMP_DIR="./temp_${FILE_NAME}_${TIMESTAMP}"
                                 mkdir -p "$TEMP_DIR"
 
@@ -47,7 +46,7 @@ pipeline {
                                 scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"$SRC_PATH" "$TEMP_DIR"
 
                                 echo "Backing up existing directory on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d $DEST_PATH ] && mv $DEST_PATH ${DEST_PATH}_$TIMESTAMP || true"
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \\"$DEST_PATH\\" ] && mv \\"$DEST_PATH\\" \\"${DEST_PATH}_$TIMESTAMP\\" || true"
 
                                 echo "Creating destination directory on DEST_HOST..."
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
