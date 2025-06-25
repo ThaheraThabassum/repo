@@ -22,7 +22,8 @@ pipeline {
                         while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
                             [ -z "$FILE_PATH" ] && continue
 
-                            if echo "$FILE_PATH" | grep -q "^/"; then
+                            # Determine full paths
+                            if [[ "$FILE_PATH" = /* ]]; then
                                 SRC_PATH="$FILE_PATH"
                                 DEST_PATH="$FILE_PATH"
                             else
@@ -32,31 +33,25 @@ pipeline {
 
                             DEST_DIR=$(dirname "$DEST_PATH")
                             FILE_NAME=$(basename "$DEST_PATH")
+                            TEMP_FILE="./temp_$FILE_NAME"
 
                             echo "Creating destination directory on DEST_HOST..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
 
                             echo "Backing up existing file if present on DEST_HOST..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
-                                if [ -f $DEST_PATH ]; then
-                                    cp -p $DEST_PATH ${DEST_PATH}_$TIMESTAMP
-                                fi
-                            "
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f $DEST_PATH ]; then cp -p $DEST_PATH ${DEST_PATH}_$TIMESTAMP; fi"
 
                             echo "Copying file from SOURCE_HOST to Jenkins workspace..."
-                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:$SRC_PATH ./temp_$FILE_NAME
+                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:$SRC_PATH $TEMP_FILE
 
                             echo "Transferring file from Jenkins workspace to DEST_HOST..."
-                            scp -o StrictHostKeyChecking=no ./temp_$FILE_NAME ${REMOTE_USER}@${DEST_HOST}:$DEST_PATH
+                            scp -o StrictHostKeyChecking=no $TEMP_FILE ${REMOTE_USER}@${DEST_HOST}:$DEST_PATH
 
                             echo "Cleaning up temp file locally..."
-                            rm -f ./temp_$FILE_NAME
+                            rm -f $TEMP_FILE
 
                             echo "Cleaning up old backups on DEST_HOST..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
-                                cd $DEST_DIR
-                                ls -t ${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f
-                            "
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -t ${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
 
                         done < ${FILES_LIST_FILE}
                     '''
@@ -67,14 +62,12 @@ pipeline {
         stage('Restart Docker on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
-                            echo "Restarting Docker containers (if needed)..."
-                            cd ${DEST_BASE_PATH}
-                            # Uncomment if needed:
-                            # docker-compose down && docker-compose up -d
-                        EOF
-                    """
+                    sh '''
+                        echo "Restarting Docker containers on DEST_HOST..."
+                        #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_BASE_PATH} && docker-compose ps"
+                        # To restart Docker uncomment below line:
+                        # ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_BASE_PATH} && docker-compose down && docker-compose up -d"
+                    '''
                 }
             }
         }
