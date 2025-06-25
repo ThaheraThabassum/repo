@@ -93,6 +93,8 @@ for _, row in df.iterrows():
  
     # Validate Table
     #check_table_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}'\"'
+    #check_table_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\'"'
+    #check_table_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\\'{db_name}\\' AND table_name=\\'{table_name}\\'"'
     check_table_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\'"'
     table_exists = subprocess.run(check_table_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if table_exists != '1':
@@ -116,7 +118,8 @@ for _, row in df.iterrows():
         column_defs = [col.strip() for col in columns_to_add.split(",")]
         for col_def in column_defs:
             col_name = col_def.split()[0]
-            check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\"'
+            #check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\"'
+            check_col_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\' AND column_name=\'{col_name}\'"'
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
             if col_exists == '1':
                 print(f"\u26a0\ufe0f Skipping column add - Column '{col_name}' already exists in {db_name}.{table_name}")
