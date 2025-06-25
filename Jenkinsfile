@@ -35,26 +35,34 @@ pipeline {
                             FILE_NAME=$(basename "$DEST_PATH")
 
                             echo "Checking if path is a directory on SOURCE_HOST..."
-                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \\"$SRC_PATH\\" ] && echo yes || echo no")
+                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"$SRC_PATH\" ] && echo yes || echo no")
 
                             if [ "$IS_DIR" = "yes" ]; then
-                                echo "Detected folder. Proceeding with folder deployment..."
+                                echo "Handling directory: $SRC_PATH"
 
-                                echo "Backing up existing folder on DEST_HOST (if any)..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -d \\"$DEST_PATH\\" ]; then tar -czf ${DEST_PATH}_$TIMESTAMP.tar.gz -C \\"$(dirname "$DEST_PATH")\\" \\"$FILE_NAME\\"; fi"
+                                TEMP_DIR="./temp_${FILE_NAME}_${TIMESTAMP}"
+                                mkdir -p "$TEMP_DIR"
+
+                                echo "Copying directory from SOURCE_HOST to Jenkins workspace..."
+                                scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"$SRC_PATH" "$TEMP_DIR"
+
+                                echo "Backing up existing directory on DEST_HOST..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d $DEST_PATH ] && mv $DEST_PATH ${DEST_PATH}_$TIMESTAMP || true"
 
                                 echo "Creating destination directory on DEST_HOST..."
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
 
-                                echo "Copying folder from SOURCE_HOST to DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "tar -czf - -C \\"$(dirname "$SRC_PATH")\\" \\"$FILE_NAME\\" " | \
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "tar -xzf - -C \\"$DEST_DIR\\""
+                                echo "Transferring directory from Jenkins workspace to DEST_HOST..."
+                                scp -r -o StrictHostKeyChecking=no "$TEMP_DIR/$(basename "$SRC_PATH")" ${REMOTE_USER}@${DEST_HOST}:"$DEST_PATH"
 
-                                echo "Setting 777 permission recursively on DEST_HOST for folder..."
+                                echo "Setting permissions for transferred directory..."
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 $DEST_PATH"
 
-                                echo "Cleaning up old folder backups..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -t ${FILE_NAME}_*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f"
+                                echo "Cleaning up temp directory locally..."
+                                rm -rf "$TEMP_DIR"
+
+                                echo "Cleaning up old backups for directory on DEST_HOST..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -dt ${FILE_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf"
 
                             else
                                 TEMP_FILE="./temp_$FILE_NAME"
