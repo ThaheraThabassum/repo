@@ -88,7 +88,8 @@ for _, row in df.iterrows():
     #check_db_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE "{db_name}"\"'
     #check_db_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"SHOW DATABASES LIKE '{db_name}'\""
     #check_db_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SHOW DATABASES LIKE \'{db_name}\'"'
-    check_db_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SHOW DATABASES LIKE \'{db_name}\'"'
+    #check_db_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SHOW DATABASES LIKE \'{db_name}\'"'
+    check_db_cmd = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SHOW DATABASES LIKE '{db_name}'\\\""
 
 
 
