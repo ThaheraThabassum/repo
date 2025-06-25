@@ -106,7 +106,7 @@ for _, row in df.iterrows():
             check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\"'
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
             if col_exists != '1':
-                print(f'\u274c Skipping - Column '{column_name}' doesn't exist in {db_name}.{table_name} for modification')
+                print(f"\u274c Skipping - Column '{column_name}' doesn't exist in {db_name}.{table_name} for modification")
                 continue
  
     # Validate column existence before ADD
@@ -117,7 +117,7 @@ for _, row in df.iterrows():
             check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\"'
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
             if col_exists == '1':
-                print(f'\u26a0\ufe0f Skipping column add - Column '{col_name}' already exists in {db_name}.{table_name}')
+                print(f"\u26a0\ufe0f Skipping column add - Column '{col_name}' already exists in {db_name}.{table_name}")
                 continue:
 
     print(f'🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes} | revert: {revert}')  # Debug Print
