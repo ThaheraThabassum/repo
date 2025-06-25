@@ -109,7 +109,8 @@ for _, row in df.iterrows():
         for mod in modify_list:
             column_name = mod.split()[0]
             #check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\"'
-            check_col_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\' AND column_name=\'{column_name}\'"'
+            #check_col_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\' AND column_name=\'{column_name}\'"'
+            check_col_cmd = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\\\""
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
             if col_exists != '1':
                 print(f"\u274c Skipping - Column '{column_name}' doesn't exist in {db_name}.{table_name} for modification")
@@ -121,7 +122,8 @@ for _, row in df.iterrows():
         for col_def in column_defs:
             col_name = col_def.split()[0]
             #check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\"'
-            check_col_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\' AND column_name=\'{col_name}\'"'
+            #check_col_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\' AND column_name=\'{col_name}\'"'
+            check_col_cmd = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\\\""
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
             if col_exists == '1':
                 print(f"\u26a0\ufe0f Skipping column add - Column '{col_name}' already exists in {db_name}.{table_name}")
