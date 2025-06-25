@@ -46,7 +46,7 @@ pipeline {
                                 scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"$SRC_PATH" "$TEMP_DIR"
 
                                 echo "Backing up existing directory on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"$DEST_PATH\" ] && mv \"$DEST_PATH\" \"${DEST_PATH}_$TIMESTAMP\" || true"
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"$DEST_PATH\" ] && mv \"$DEST_PATH\" \"${DEST_DIR}/${FILE_NAME}_$TIMESTAMP\" && echo 'Backup done.' || echo 'No existing directory to backup.'"
 
                                 echo "Creating destination directory on DEST_HOST..."
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
