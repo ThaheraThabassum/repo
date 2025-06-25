@@ -1,3 +1,1 @@
-kotak_demo_testing.txt
-testing/
-test.txt
+reports_api/BL/app/testing.txt
