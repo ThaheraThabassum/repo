@@ -1,5 +1,6 @@
 pipeline {
     agent any
+
     environment {
         FILES_LIST_FILE = "files_to_deploy.txt"
         REMOTE_USER = "thahera"
@@ -9,11 +10,13 @@ pipeline {
         SOURCE_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda-DevOps"
     }
+
     stages {
         stage('Server to Server Deployment') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
+                        set -e
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
@@ -30,22 +33,26 @@ pipeline {
                             DEST_DIR=$(dirname "$DEST_PATH")
                             FILE_NAME=$(basename "$DEST_PATH")
 
-                            echo "Creating destination directory..."
+                            echo "Creating destination directory on DEST_HOST..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
 
-                            echo "Backing up existing file if present..."
+                            echo "Backing up existing file if present on DEST_HOST..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
                                 if [ -f $DEST_PATH ]; then
                                     cp -p $DEST_PATH ${DEST_PATH}_$TIMESTAMP
                                 fi
                             "
 
-                            echo "Copying file from source to destination..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
-                                scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:$SRC_PATH $DEST_PATH
-                            "
+                            echo "Copying file from SOURCE_HOST to Jenkins workspace..."
+                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:$SRC_PATH ./temp_$FILE_NAME
 
-                            echo "Cleaning up old backups..."
+                            echo "Transferring file from Jenkins workspace to DEST_HOST..."
+                            scp -o StrictHostKeyChecking=no ./temp_$FILE_NAME ${REMOTE_USER}@${DEST_HOST}:$DEST_PATH
+
+                            echo "Cleaning up temp file locally..."
+                            rm -f ./temp_$FILE_NAME
+
+                            echo "Cleaning up old backups on DEST_HOST..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
                                 cd $DEST_DIR
                                 ls -t ${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f
@@ -62,8 +69,9 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
+                            echo Restarting Docker containers (if needed)...
                             cd ${DEST_BASE_PATH}
-                            
+                            # docker-compose down && docker-compose up -d   # Uncomment if needed
                         "
                     '''
                 }
@@ -71,4 +79,3 @@ pipeline {
         }
     }
 }
-
