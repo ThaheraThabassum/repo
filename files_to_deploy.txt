@@ -1,1 +1,1 @@
-/var/www/testing.py
+/var/www/test.py
