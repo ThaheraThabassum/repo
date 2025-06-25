@@ -86,7 +86,6 @@ for _, row in df.iterrows():
 
     # Validate DB
     #check_db_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE "{db_name}"\"'
-    #check_db_cmd = f"""mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e "SHOW DATABASES LIKE '{db_name}'" """
     check_db_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"SHOW DATABASES LIKE '{db_name}'\""
 
 
@@ -98,7 +97,6 @@ for _, row in df.iterrows():
     # Validate Table
     #check_table_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\'"'
     #check_table_cmd = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}'\\\""
-    #check_table_cmd = f'''mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}'" '''
     check_table_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name='{table_name}'\""
 
 
@@ -118,7 +116,6 @@ for _, row in df.iterrows():
             #check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\"'
             #check_col_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\' AND column_name=\'{column_name}\'"'
             #check_col_cmd = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\\\""
-            #check_col_cmd = f"""mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'" """
             check_col_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\""
 
             col_exists = subprocess.run(check_col_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
@@ -134,7 +131,6 @@ for _, row in df.iterrows():
             #check_col_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\"'
             #check_col_cmd = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=\'{db_name}\' AND table_name=\'{table_name}\' AND column_name=\'{col_name}\'"'
             #check_col_cmd = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{column_name}'\\\""
-            #check_col_cmd = f"""mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'" """
             check_col_cmd = f"mysql -u {MYSQL_USER} -p'{MYSQL_PASSWORD}' -N -e \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col_name}'\""
 
 
