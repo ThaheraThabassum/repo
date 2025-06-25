@@ -35,7 +35,7 @@ pipeline {
                             FILE_NAME=$(basename "$DEST_PATH")
 
                             echo "Checking if path is a directory on SOURCE_HOST..."
-                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \\"$SRC_PATH\\" ] && echo yes || echo no")
+                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"$SRC_PATH\" ] && echo yes || echo no")
 
                             if [ "$IS_DIR" = "yes" ]; then
                                 echo "Handling directory: $SRC_PATH"
@@ -46,13 +46,13 @@ pipeline {
                                 scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"$SRC_PATH" "$TEMP_DIR"
 
                                 echo "Backing up existing directory on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \\"$DEST_PATH\\" ] && mv \\"$DEST_PATH\\" \\"${DEST_PATH}_$TIMESTAMP\\" || true"
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"$DEST_PATH\" ] && mv \"$DEST_PATH\" \"${DEST_PATH}_$TIMESTAMP\" || true"
 
                                 echo "Creating destination directory on DEST_HOST..."
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
 
                                 echo "Transferring directory from Jenkins workspace to DEST_HOST..."
-                                scp -r -o StrictHostKeyChecking=no "$TEMP_DIR/$(basename "$SRC_PATH")" ${REMOTE_USER}@${DEST_HOST}:"$DEST_DIR/"
+                                scp -r -o StrictHostKeyChecking=no "$TEMP_DIR/$(basename \"$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"$DEST_DIR/"
 
                                 echo "Setting permissions for transferred directory..."
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 $DEST_PATH"
