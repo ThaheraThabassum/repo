@@ -33,28 +33,53 @@ pipeline {
 
                             DEST_DIR=$(dirname "$DEST_PATH")
                             FILE_NAME=$(basename "$DEST_PATH")
-                            TEMP_FILE="./temp_$FILE_NAME"
 
-                            echo "Creating destination directory on DEST_HOST..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
+                            echo "Checking if path is a directory on SOURCE_HOST..."
+                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \\"$SRC_PATH\\" ] && echo yes || echo no")
 
-                            echo "Backing up existing file if present on DEST_HOST..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f $DEST_PATH ]; then cp -p $DEST_PATH ${DEST_PATH}_$TIMESTAMP; fi"
+                            if [ "$IS_DIR" = "yes" ]; then
+                                echo "Detected folder. Proceeding with folder deployment..."
 
-                            echo "Copying file from SOURCE_HOST to Jenkins workspace..."
-                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:$SRC_PATH $TEMP_FILE
+                                echo "Backing up existing folder on DEST_HOST (if any)..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -d \\"$DEST_PATH\\" ]; then tar -czf ${DEST_PATH}_$TIMESTAMP.tar.gz -C \\"$(dirname "$DEST_PATH")\\" \\"$FILE_NAME\\"; fi"
 
-                            echo "Transferring file from Jenkins workspace to DEST_HOST..."
-                            scp -o StrictHostKeyChecking=no $TEMP_FILE ${REMOTE_USER}@${DEST_HOST}:$DEST_PATH
+                                echo "Creating destination directory on DEST_HOST..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
 
-                            echo "Setting 777 permission on DEST_HOST for transferred file..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 $DEST_PATH"
+                                echo "Copying folder from SOURCE_HOST to DEST_HOST..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "tar -czf - -C \\"$(dirname "$SRC_PATH")\\" \\"$FILE_NAME\\" " | \
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "tar -xzf - -C \\"$DEST_DIR\\""
 
-                            echo "Cleaning up temp file locally..."
-                            rm -f $TEMP_FILE
+                                echo "Setting 777 permission recursively on DEST_HOST for folder..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 $DEST_PATH"
 
-                            echo "Cleaning up old backups on DEST_HOST..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -t ${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
+                                echo "Cleaning up old folder backups..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -t ${FILE_NAME}_*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f"
+
+                            else
+                                TEMP_FILE="./temp_$FILE_NAME"
+
+                                echo "Creating destination directory on DEST_HOST..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
+
+                                echo "Backing up existing file if present on DEST_HOST..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f $DEST_PATH ]; then cp -p $DEST_PATH ${DEST_PATH}_$TIMESTAMP; fi"
+
+                                echo "Copying file from SOURCE_HOST to Jenkins workspace..."
+                                scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:$SRC_PATH $TEMP_FILE
+
+                                echo "Transferring file from Jenkins workspace to DEST_HOST..."
+                                scp -o StrictHostKeyChecking=no $TEMP_FILE ${REMOTE_USER}@${DEST_HOST}:$DEST_PATH
+
+                                echo "Setting 777 permission on DEST_HOST for transferred file..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 $DEST_PATH"
+
+                                echo "Cleaning up temp file locally..."
+                                rm -f $TEMP_FILE
+
+                                echo "Cleaning up old file backups..."
+                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -t ${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
+                            fi
 
                         done < ${FILES_LIST_FILE}
                     '''
