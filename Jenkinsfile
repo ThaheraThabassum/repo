@@ -15,81 +15,83 @@ pipeline {
         stage('Server to Server Deployment') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
-                        set -e
-                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+                    script {
+                        def fileList = readFile(env.FILES_LIST_FILE).split("\n")
+                        for (filePath in fileList) {
+                            if (!filePath?.trim()) continue
 
-                        while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
-                            [ -z "$FILE_PATH" ] && continue
+                            sh """#!/bin/bash
+                                set -e
+                                FILE_PATH='${filePath.trim()}'
+                                TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
 
-                            # Determine full paths
-                            if [[ "$FILE_PATH" = /* ]]; then
-                                SRC_PATH="$FILE_PATH"
-                                DEST_PATH="$FILE_PATH"
-                            else
-                                SRC_PATH="${SOURCE_BASE_PATH}/$FILE_PATH"
-                                DEST_PATH="${DEST_BASE_PATH}/$FILE_PATH"
-                            fi
+                                if [[ \"\$FILE_PATH\" = /* ]]; then
+                                    SRC_PATH=\"\$FILE_PATH\"
+                                    DEST_PATH=\"\$FILE_PATH\"
+                                else
+                                    SRC_PATH=\"${SOURCE_BASE_PATH}/\$FILE_PATH\"
+                                    DEST_PATH=\"${DEST_BASE_PATH}/\$FILE_PATH\"
+                                fi
 
-                            DEST_DIR=$(dirname "$DEST_PATH")
-                            FILE_NAME=$(basename "$DEST_PATH")
+                                DEST_DIR=\$(dirname \"\$DEST_PATH\")
+                                FILE_NAME=\$(basename \"\$DEST_PATH\")
 
-                            echo "Checking if path is a directory on SOURCE_HOST..."
-                            IS_DIR=$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"$SRC_PATH\" ] && echo yes || echo no")
+                                echo "Checking if path is a directory on SOURCE_HOST..."
+                                IS_DIR=\$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"\$SRC_PATH\" ] && echo yes || echo no")
 
-                            if [ "$IS_DIR" = "yes" ]; then
-                                echo "Handling directory: $SRC_PATH"
-                                TEMP_DIR="./temp_${FILE_NAME}_${TIMESTAMP}"
-                                mkdir -p "$TEMP_DIR"
+                                if [ \"\$IS_DIR\" = "yes" ]; then
+                                    echo "Handling directory: \$SRC_PATH"
+                                    TEMP_DIR=\"./temp_\${FILE_NAME}_\${TIMESTAMP}\"
+                                    mkdir -p \"\$TEMP_DIR\"
 
-                                echo "Copying directory from SOURCE_HOST to Jenkins workspace..."
-                                scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"$SRC_PATH" "$TEMP_DIR"
+                                    echo "Copying directory from SOURCE_HOST to Jenkins workspace..."
+                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_DIR\"
 
-                                echo "Backing up existing directory on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"$DEST_PATH\" ] && mv \"$DEST_PATH\" \"${DEST_DIR}/${FILE_NAME}_$TIMESTAMP\" && echo 'Backup done.' || echo 'No existing directory to backup.'"
+                                    echo "Backing up existing directory on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" && echo 'Backup done.' || echo 'No existing directory to backup.'"
 
-                                echo "Creating destination directory on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
+                                    echo "Creating destination directory on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
 
-                                echo "Transferring directory from Jenkins workspace to DEST_HOST..."
-                                scp -r -o StrictHostKeyChecking=no "$TEMP_DIR/$(basename \"$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"$DEST_DIR/"
+                                    echo "Transferring directory from Jenkins workspace to DEST_HOST..."
+                                    scp -r -o StrictHostKeyChecking=no \"\$TEMP_DIR/\$(basename \"\$SRC_PATH\")\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_DIR/\"
 
-                                echo "Setting permissions for transferred directory..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 $DEST_PATH"
+                                    echo "Setting permissions for transferred directory..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
 
-                                echo "Cleaning up temp directory locally..."
-                                rm -rf "$TEMP_DIR"
+                                    echo "Cleaning up temp directory locally..."
+                                    rm -rf \"\$TEMP_DIR\"
 
-                                echo "Cleaning up old backups for directory on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -dt ${FILE_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf"
+                                    echo "Cleaning up old backups for directory on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -dt \${FILE_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf"
 
-                            else
-                                TEMP_FILE="./temp_$FILE_NAME"
+                                else
+                                    TEMP_FILE=\"./temp_\$FILE_NAME\"
 
-                                echo "Creating destination directory on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p $DEST_DIR"
+                                    echo "Creating destination directory on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
 
-                                echo "Backing up existing file if present on DEST_HOST..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f $DEST_PATH ]; then cp -p $DEST_PATH ${DEST_PATH}_$TIMESTAMP; fi"
+                                    echo "Backing up existing file if present on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f \"\$DEST_PATH\" ]; then cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP; fi"
 
-                                echo "Copying file from SOURCE_HOST to Jenkins workspace..."
-                                scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:$SRC_PATH $TEMP_FILE
+                                    echo "Copying file from SOURCE_HOST to Jenkins workspace..."
+                                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_FILE\"
 
-                                echo "Transferring file from Jenkins workspace to DEST_HOST..."
-                                scp -o StrictHostKeyChecking=no $TEMP_FILE ${REMOTE_USER}@${DEST_HOST}:$DEST_PATH
+                                    echo "Transferring file from Jenkins workspace to DEST_HOST..."
+                                    scp -o StrictHostKeyChecking=no \"\$TEMP_FILE\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_PATH\"
 
-                                echo "Setting 777 permission on DEST_HOST for transferred file..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 $DEST_PATH"
+                                    echo "Setting 777 permission on DEST_HOST for transferred file..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 \"\$DEST_PATH\""
 
-                                echo "Cleaning up temp file locally..."
-                                rm -f $TEMP_FILE
+                                    echo "Cleaning up temp file locally..."
+                                    rm -f \"\$TEMP_FILE\"
 
-                                echo "Cleaning up old file backups..."
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -t ${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
-                            fi
-
-                        done < "${WORKSPACE}/${FILES_LIST_FILE}"
-                    '''
+                                    echo "Cleaning up old file backups..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -t \${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
+                                fi
+                            """
+                        }
+                    }
                 }
             }
         }
