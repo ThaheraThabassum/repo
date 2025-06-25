@@ -22,7 +22,7 @@ pipeline {
                         while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
                             [ -z "$FILE_PATH" ] && continue
 
-                            if [[ "$FILE_PATH" = /* ]]; then
+                            if echo "$FILE_PATH" | grep -q "^/"; then
                                 SRC_PATH="$FILE_PATH"
                                 DEST_PATH="$FILE_PATH"
                             else
@@ -67,13 +67,14 @@ pipeline {
         stage('Restart Docker on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
                             echo "Restarting Docker containers (if needed)..."
                             cd ${DEST_BASE_PATH}
-                            # docker-compose down && docker-compose up -d   # Uncomment if needed
-                        "
-                    '''
+                            # Uncomment if needed:
+                            # docker-compose down && docker-compose up -d
+                        EOF
+                    """
                 }
             }
         }
