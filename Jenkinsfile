@@ -19,7 +19,7 @@ pipeline {
                         set -e
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
-                        while IFS= read -r FILE_PATH; do
+                        while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
                             [ -z "$FILE_PATH" ] && continue
 
                             # Determine full paths
@@ -88,7 +88,7 @@ pipeline {
                                 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd $DEST_DIR && ls -t ${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
                             fi
 
-                        done < ${FILES_LIST_FILE}
+                        done < "${WORKSPACE}/${FILES_LIST_FILE}"
                     '''
                 }
             }
