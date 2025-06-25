@@ -64,7 +64,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         echo "Restarting Docker containers on DEST_HOST..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_BASE_PATH} && docker-compose down && docker-compose up -d"
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_BASE_PATH} && sudo docker-compose up --build -d --force-recreate"
                     '''
                 }
             }
