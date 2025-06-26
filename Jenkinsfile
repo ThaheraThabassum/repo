@@ -17,6 +17,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     script {
                         def fileList = readFile(env.FILES_LIST_FILE).split("\n")
+
                         for (filePath in fileList) {
                             if (!filePath?.trim()) continue
                             def trimmedPath = filePath.trim()
@@ -24,97 +25,76 @@ pipeline {
                             if (trimmedPath.startsWith("image:")) {
                                 def imageName = trimmedPath.replace("image:", "").trim()
                                 def safeImageName = imageName.replaceAll("[/:]", "_")
-                                sh """#!/bin/bash
-                                    set -e
-                                    TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
-                                    TAR_FILE="${SOURCE_BASE_PATH}/${safeImageName}_\${TIMESTAMP}.tar"
+                                def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
 
-                                    echo "Saving Docker image on SOURCE_HOST: ${imageName}"
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "sudo docker save -o \\"$TAR_FILE\\" ${imageName}"
+                                sh """
+                                    echo "Saving Docker image from SOURCE_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \
+                                        "cd ${SOURCE_BASE_PATH} && sudo docker save -o ${safeImageName}_local_${timestamp}.tar ${imageName}"
 
-                                    echo "Transferring saved image to DEST_HOST..."
-                                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"$TAR_FILE" .
+                                    echo "Transferring Docker image TAR to DEST_HOST..."
+                                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${SOURCE_BASE_PATH}/${safeImageName}_local_${timestamp}.tar \
+                                        ${REMOTE_USER}@${DEST_HOST}:${DEST_BASE_PATH}/
 
                                     echo "Backing up existing Docker image on DEST_HOST (if exists)..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo docker save -o ${DEST_BASE_PATH}/${safeImageName}_uat_bak_\${TIMESTAMP}.tar ${imageName} || echo 'Image not present, skipping backup.'"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "cd ${DEST_BASE_PATH} && sudo docker save -o ${safeImageName}_uat_bak_${timestamp}.tar ${imageName} || echo 'No image to backup.'"
 
-                                    echo "Copying new image to DEST_HOST..."
-                                    scp -o StrictHostKeyChecking=no ./${safeImageName}_\${TIMESTAMP}.tar ${REMOTE_USER}@${DEST_HOST}:${DEST_BASE_PATH}/
-
-                                    echo "Loading new Docker image on DEST_HOST..."
-                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo docker load -i ${DEST_BASE_PATH}/${safeImageName}_\${TIMESTAMP}.tar"
-
-                                    echo "Cleaning up local tar..."
-                                    #rm -f ${safeImageName}_\${TIMESTAMP}.tar
+                                    echo "Loading transferred Docker image on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "cd ${DEST_BASE_PATH} && sudo docker load -i ${safeImageName}_local_${timestamp}.tar"
                                 """
+
                             } else {
-                                // existing file/folder logic here (unchanged)
                                 sh """#!/bin/bash
                                     set -e
                                     FILE_PATH='${trimmedPath}'
                                     TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
 
-                                    if [[ "\$FILE_PATH" = /* ]]; then
-                                        SRC_PATH="\$FILE_PATH"
-                                        DEST_PATH="\$FILE_PATH"
+                                    if [[ \"\$FILE_PATH\" = /* ]]; then
+                                        SRC_PATH=\"\$FILE_PATH\"
+                                        DEST_PATH=\"\$FILE_PATH\"
                                     else
-                                        SRC_PATH="${SOURCE_BASE_PATH}/\$FILE_PATH"
-                                        DEST_PATH="${DEST_BASE_PATH}/\$FILE_PATH"
+                                        SRC_PATH=\"${SOURCE_BASE_PATH}/\$FILE_PATH\"
+                                        DEST_PATH=\"${DEST_BASE_PATH}/\$FILE_PATH\"
                                     fi
 
-                                    DEST_DIR=\$(dirname "\$DEST_PATH")
-                                    FILE_NAME=\$(basename "\$DEST_PATH")
+                                    DEST_DIR=\$(dirname \"\$DEST_PATH\")
+                                    FILE_NAME=\$(basename \"\$DEST_PATH\")
 
                                     echo "Checking if path is a directory on SOURCE_HOST..."
                                     IS_DIR=\$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"\$SRC_PATH\" ] && echo yes || echo no")
 
-                                    if [ "\$IS_DIR" = "yes" ]; then
+                                    if [ \"\$IS_DIR\" = "yes" ]; then
                                         echo "Handling directory: \$SRC_PATH"
                                         TEMP_DIR="./temp_\${FILE_NAME}_\${TIMESTAMP}"
-                                        mkdir -p "\$TEMP_DIR"
+                                        mkdir -p \"\$TEMP_DIR\"
 
-                                        echo "Copying directory from SOURCE_HOST to Jenkins workspace..."
-                                        scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"\$SRC_PATH" "\$TEMP_DIR"
+                                        scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_DIR\"
 
-                                        echo "Backing up existing directory on DEST_HOST..."
-                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" && echo 'Backup done.' || echo 'No existing directory to backup.'"
-
-                                        echo "Creating destination directory on DEST_HOST..."
+                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" || echo 'No directory to backup.'"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
 
-                                        echo "Transferring directory from Jenkins workspace to DEST_HOST..."
-                                        scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\$(basename \"\$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_DIR/"
+                                        scp -r -o StrictHostKeyChecking=no \"\$TEMP_DIR/\$(basename \"\$SRC_PATH\")\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_DIR/\"
 
-                                        echo "Setting permissions for transferred directory..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
 
-                                        echo "Cleaning up temp directory locally..."
-                                        rm -rf "\$TEMP_DIR"
+                                        rm -rf \"\$TEMP_DIR\"
 
-                                        echo "Cleaning up old backups for directory on DEST_HOST..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -dt \${FILE_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf"
+
                                     else
-                                        TEMP_FILE="./temp_\$FILE_NAME"
-
-                                        echo "Creating destination directory on DEST_HOST..."
+                                        TEMP_FILE=\"./temp_\$FILE_NAME\"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
-
-                                        echo "Backing up existing file if present on DEST_HOST..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f \"\$DEST_PATH\" ]; then cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP; fi"
 
-                                        echo "Copying file from SOURCE_HOST to Jenkins workspace..."
                                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_FILE\"
-
-                                        echo "Transferring file from Jenkins workspace to DEST_HOST..."
                                         scp -o StrictHostKeyChecking=no \"\$TEMP_FILE\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_PATH\"
 
-                                        echo "Setting 777 permission on DEST_HOST for transferred file..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 \"\$DEST_PATH\""
 
-                                        echo "Cleaning up temp file locally..."
                                         rm -f \"\$TEMP_FILE\"
 
-                                        echo "Cleaning up old file backups..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -t \${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
                                     fi
                                 """
@@ -129,18 +109,18 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Restarting Docker containers on DEST_HOST..."
+                        echo "Stopping all running Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
-                            CONTAINERS=\\$(sudo docker ps -aq)
-                            if [ -n \\\"\\$CONTAINERS\\\" ]; then
-                                echo \\\"Stopping containers...\\\"
-                                sudo docker stop \\$CONTAINERS
-                                echo \\\"Removing containers...\\\"
-                                sudo docker rm \\$CONTAINERS
+                            CONTAINERS=\$(sudo docker ps -aq)
+                            if [ -n \"\$CONTAINERS\" ]; then
+                                echo \"Stopping containers...\"
+                                sudo docker stop \$CONTAINERS
+                                echo \"Removing containers...\"
+                                sudo docker rm \$CONTAINERS
                             else
-                                echo \\\"No running containers to stop/remove.\\\"
+                                echo \"No running containers to stop/remove.\"
                             fi
-                            echo \\\"Recreating containers with docker-compose...\\\"
+                            echo \"Recreating containers with docker-compose...\"
                             cd ${DEST_BASE_PATH}
                             sudo docker-compose up --build -d --force-recreate
                         '"
