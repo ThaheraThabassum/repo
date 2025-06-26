@@ -30,7 +30,6 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
-                        #cd ${DEST_TMP_PATH}
 
                         echo "Unzipping UI build on UAT server..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && sudo unzip -o ${ZIP_FILE_NAME}"
@@ -44,17 +43,24 @@ pipeline {
                         echo "Backing up pdf directory in new UI..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets && [ -d pdf ] && sudo mv pdf pdf_\${TIMESTAMP} || echo 'No pdf folder found to backup.'"
 
-                        echo "Restoring pdf, usermanagement, masterdata from backup..."
+                        echo "Restoring pdf, usermanagement, masterdata from current backup..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
-                            #cd ${UI_DEPLOY_PATH}
-                            BACKUP_DIR=\$(ls -td ${UI_FOLDER_NAME}_*/ | head -1 | tr -d /)
-                            if [ -d \$BACKUP_DIR ]; then
-                                sudo cp -r \$BACKUP_DIR/assets/pdf ${UI_FOLDER_NAME}/assets/ || echo 'No pdf found in backup'
-                                sudo cp -r \$BACKUP_DIR/usermanagement ${UI_FOLDER_NAME}/ || echo 'No usermanagement found in backup'
-                                sudo cp -r \$BACKUP_DIR/masterdata ${UI_FOLDER_NAME}/ || echo 'No masterdata found in backup'
+                            set -e
+                            cd ${UI_DEPLOY_PATH}
+                            BACKUP_NAME=${UI_FOLDER_NAME}_\${TIMESTAMP}
+                            if [ -d \$BACKUP_NAME ]; then
+                                [ -d \$BACKUP_NAME/assets/pdf ] && sudo cp -r \$BACKUP_NAME/assets/pdf ${UI_FOLDER_NAME}/assets/ || echo \"No pdf folder in backup\"
+                                [ -d \$BACKUP_NAME/usermanagement ] && sudo cp -r \$BACKUP_NAME/usermanagement ${UI_FOLDER_NAME}/ || echo \"No usermanagement in backup\"
+                                [ -d \$BACKUP_NAME/masterdata ] && sudo cp -r \$BACKUP_NAME/masterdata ${UI_FOLDER_NAME}/ || echo \"No masterdata in backup\"
                             else
-                                echo 'No backup directory to restore from.'
+                                echo \"Backup folder \$BACKUP_NAME not found!\"
                             fi
+                        '"
+
+                        echo "Cleaning old UI backups (retain only latest 3)..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
+                            cd ${UI_DEPLOY_PATH}
+                            ls -td ${UI_FOLDER_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
                         '"
 
                         echo "Setting permissions to 777..."
