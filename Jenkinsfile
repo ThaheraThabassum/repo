@@ -36,35 +36,38 @@ pipeline {
                     }
 
                     if (!env.ZIP_FILE_NAME) {
-                        echo "\u26a0 UI zip file name not provided. UI deployment will be skipped."
+                        echo "⚠ UI zip file name not provided. UI deployment will be skipped."
                     } else {
-                        echo "\u2714 UI Zip: ${env.ZIP_FILE_NAME}"
+                        echo "✔ UI Zip: ${env.ZIP_FILE_NAME}"
                     }
 
                     if (env.USERMGMT_ZIP_NAME) {
-                        echo "\u2714 Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
+                        echo "✔ Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
                     }
 
                     if (env.MASTERDATA_ZIP_NAME) {
-                        echo "\u2714 Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
+                        echo "✔ Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
                     }
                 }
             }
         }
 
         stage('Transfer UI Zip File') {
-            when {
-                expression { return env.ZIP_FILE_NAME }
-            }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
-                    sh """
+                    sh '''
                         echo "Generating timestamp..."
-                        TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
-                        echo \$TIMESTAMP > timestamp.txt
+                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+                        echo $TIMESTAMP > timestamp.txt
+                    '''
 
+                    script {
+                        env.DEPLOY_TIMESTAMP = readFile('timestamp.txt').trim()
+                    }
+
+                    sh """
                         echo "Copying UI zip file from local to UAT server..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${ZIP_FILE_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
+                        ${env.ZIP_FILE_NAME ? "scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${env.ZIP_FILE_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/" : ""}
 
                         ${env.USERMGMT_ZIP_NAME ? "echo 'Copying usermanagement zip...'\nscp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${env.USERMGMT_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/" : ""}
 
@@ -80,48 +83,44 @@ pipeline {
             }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
-                    script {
-                        def timestamp = readFile('timestamp.txt').trim()
+                    sh """
+                        echo "Unzipping UI build on UAT server..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && sudo unzip -o ${ZIP_FILE_NAME}"
 
-                        sh """
-                            echo "Unzipping UI build on UAT server..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && sudo unzip -o ${ZIP_FILE_NAME}"
+                        echo "Taking backup of existing UI folder..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH} && [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_${DEPLOY_TIMESTAMP} || echo 'No existing UI folder to backup.'"
 
-                            echo "Taking backup of existing UI folder..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH} && [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_\${timestamp} || echo 'No existing UI folder to backup.'"
+                        echo "Deploying new UI folder..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/"
 
-                            echo "Deploying new UI folder..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/"
+                        echo "Backing up pdf directory in new UI..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets && [ -d pdf ] && sudo mv pdf pdf_${DEPLOY_TIMESTAMP} || echo 'No pdf folder found to backup.'"
 
-                            echo "Backing up pdf directory in new UI..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets && [ -d pdf ] && sudo mv pdf pdf_\${timestamp} || echo 'No pdf folder found to backup.'"
+                        echo "Restoring pdf, usermanagement, masterdata from current backup..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                            set -e
+                            cd ${UI_DEPLOY_PATH}
+                            BACKUP_NAME="${UI_FOLDER_NAME}_${DEPLOY_TIMESTAMP}"
+                            echo "Looking for backup: $BACKUP_NAME"
 
-                            echo "Restoring pdf, usermanagement, masterdata from current backup..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
-                                set -e
-                                cd ${UI_DEPLOY_PATH}
-                                BACKUP_NAME="${UI_FOLDER_NAME}_\${timestamp}"
-                                echo "Looking for backup: \$BACKUP_NAME"
+                            if [ -d "$BACKUP_NAME" ]; then
+                                [ -d "$BACKUP_NAME/assets/pdf" ] && sudo cp -r "$BACKUP_NAME/assets/pdf" "${UI_FOLDER_NAME}/assets/" || echo "No pdf folder in backup"
+                                [ -d "$BACKUP_NAME/usermanagement" ] && sudo cp -r "$BACKUP_NAME/usermanagement" "${UI_FOLDER_NAME}/" || echo "No usermanagement in backup"
+                                [ -d "$BACKUP_NAME/masterdata" ] && sudo cp -r "$BACKUP_NAME/masterdata" "${UI_FOLDER_NAME}/" || echo "No masterdata in backup"
+                            else
+                                echo "Backup folder $BACKUP_NAME not found!"
+                            fi
+                        '
 
-                                if [ -d "\$BACKUP_NAME" ]; then
-                                    [ -d "\$BACKUP_NAME/assets/pdf" ] && sudo cp -r "\$BACKUP_NAME/assets/pdf" "${UI_FOLDER_NAME}/assets/" || echo "No pdf folder in backup"
-                                    [ -d "\$BACKUP_NAME/usermanagement" ] && sudo cp -r "\$BACKUP_NAME/usermanagement" "${UI_FOLDER_NAME}/" || echo "No usermanagement in backup"
-                                    [ -d "\$BACKUP_NAME/masterdata" ] && sudo cp -r "\$BACKUP_NAME/masterdata" "${UI_FOLDER_NAME}/" || echo "No masterdata in backup"
-                                else
-                                    echo "Backup folder \$BACKUP_NAME not found!"
-                                fi
-                            '
+                        echo "Cleaning old UI backups (retain only latest 3)..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                            cd ${UI_DEPLOY_PATH}
+                            ls -td ${UI_FOLDER_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
+                        '
 
-                            echo "Cleaning old UI backups (retain only latest 3)..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
-                                cd ${UI_DEPLOY_PATH}
-                                ls -td ${UI_FOLDER_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
-                            '
-
-                            echo "Setting permissions to 777..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}"
-                        """
-                    }
+                        echo "Setting permissions to 777..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}"
+                    """
                 }
             }
         }
@@ -132,27 +131,21 @@ pipeline {
             }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
-                    script {
-                        def timestamp = readFile('timestamp.txt').trim()
+                    sh """
+                        echo "Unzipping usermanagement zip on UAT..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && sudo unzip -o ${env.USERMGMT_ZIP_NAME}"
 
-                        sh """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
-                                cd ${DEST_TMP_PATH}
-                                sudo unzip -o ${env.USERMGMT_ZIP_NAME}
+                        echo "Backing up and deploying usermanagement..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                            cd ${UI_DEPLOY_PATH}/htdocs/${UI_FOLDER_NAME}
+                            [ -d usermanagement ] && sudo mv usermanagement usermanagement_${DEPLOY_TIMESTAMP} || echo "No existing usermanagement folder"
+                            sudo mv ${DEST_TMP_PATH}/usermanagement .
+                            [ -d usermanagement_${DEPLOY_TIMESTAMP}/assets/user_files ] && sudo cp -r usermanagement_${DEPLOY_TIMESTAMP}/assets/user_files usermanagement/assets/ || echo "No user_files to restore"
+                            sudo chmod -R 777 usermanagement
 
-                                cd ${UI_DEPLOY_PATH}/htdocs/kmb
-                                [ -d usermanagement ] && sudo mv usermanagement usermanagement_\${timestamp} || echo "No existing usermanagement folder to backup."
-
-                                sudo mv ${DEST_TMP_PATH}/usermanagement .
-
-                                [ -d usermanagement_\${timestamp}/assets/user_files ] && sudo cp -r usermanagement_\${timestamp}/assets/user_files usermanagement/assets/ || echo "No user_files to restore."
-
-                                ls -td usermanagement_*/ 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
-
-                                sudo chmod -R 777 usermanagement
-                            '
-                        """
-                    }
+                            ls -td usermanagement_*/ 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
+                        '
+                    """
                 }
             }
         }
@@ -163,25 +156,20 @@ pipeline {
             }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
-                    script {
-                        def timestamp = readFile('timestamp.txt').trim()
+                    sh """
+                        echo "Unzipping masterdata zip on UAT..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && sudo unzip -o ${env.MASTERDATA_ZIP_NAME}"
 
-                        sh """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
-                                cd ${DEST_TMP_PATH}
-                                sudo unzip -o ${env.MASTERDATA_ZIP_NAME}
+                        echo "Backing up and deploying masterdata..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                            cd ${UI_DEPLOY_PATH}/htdocs/${UI_FOLDER_NAME}
+                            [ -d masterdata ] && sudo mv masterdata masterdata_${DEPLOY_TIMESTAMP} || echo "No existing masterdata folder"
+                            sudo mv ${DEST_TMP_PATH}/masterdata .
+                            sudo chmod -R 777 masterdata
 
-                                cd ${UI_DEPLOY_PATH}/htdocs/kmb
-                                [ -d masterdata ] && sudo mv masterdata masterdata_\${timestamp} || echo "No existing masterdata folder to backup."
-
-                                sudo mv ${DEST_TMP_PATH}/masterdata .
-
-                                ls -td masterdata_*/ 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
-
-                                sudo chmod -R 777 masterdata
-                            '
-                        """
-                    }
+                            ls -td masterdata_*/ 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
+                        '
+                    """
                 }
             }
         }
