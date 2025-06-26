@@ -23,7 +23,7 @@ pipeline {
                             // Handle Docker images separately
                             if (filePath.trim().startsWith("image:")) {
                                 def imageName = filePath.trim().replace("image:", "").trim()
-                                def sanitizedImage = imageName.replaceAll(/[/:]/, "_")
+                                def sanitizedImage = imageName.replaceAll("[/:]", "_")
 
                                 sh """#!/bin/bash
                                     set -e
