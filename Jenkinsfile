@@ -180,6 +180,17 @@ for _, row in databases.iterrows():
     table_name = row["table"]
     option = row["option"]
 
+    if isinstance(option, str): #Check if its a String
+        option = option.strip().lower() #Strip only if it is a string
+    else:
+        option = str(option).lower() #Convert to string and lower if not a string.
+        if option == 'nan':
+            option = '' #Set to empty string if its nan.
+    where_condition = str(row.get("where_condition", "")).strip()
+    columns_to_add = str(row.get("columns_need_to_add", "")).strip()
+    datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
+    revert = str(row.get("revert", "")).strip().lower()
+
     
 
  
@@ -220,18 +231,6 @@ for _, row in databases.iterrows():
     print(f'🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes} | revert: {revert}')  # Debug Print
 
 
-
-    
-    if isinstance(option, str): #Check if its a String
-        option = option.strip().lower() #Strip only if it is a string
-    else:
-        option = str(option).lower() #Convert to string and lower if not a string.
-        if option == 'nan':
-            option = '' #Set to empty string if its nan.
-    where_condition = str(row.get("where_condition", "")).strip()
-    columns_to_add = str(row.get("columns_need_to_add", "")).strip()
-    datatype_changes = str(row.get("change_the_datatype_for_columns", "")).strip()
-    revert = str(row.get("revert", "")).strip().lower()
 
     if revert == "yes":
         print(f"🔄 Reverting table: {table_name} in database: {db_name}")
