@@ -30,7 +30,7 @@ pipeline {
                                 // Save image on source
                                 sh """
                                     echo "Saving image on SOURCE_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "cd ${IMAGE_WORK_DIR} && sudo docker save -o ${imageTar} ${imageName}"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker save -o ${imageTar} ${imageName}"
                                 """
 
                                 // Transfer image to destination
@@ -42,13 +42,13 @@ pipeline {
                                 // Backup old image on destination
                                 sh """
                                     echo "Backing up existing Docker image on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && sudo docker save -o ${imageTarBak} ${imageName} || echo 'No existing image to backup.'"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker save -o ${imageTarBak} ${imageName} || echo 'No existing image to backup.'"
                                 """
 
                                 // Load new image
                                 sh """
                                     echo "Loading transferred Docker image on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && sudo docker load -i ${imageTar}"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
                                 """
                             } else {
                                 // File/Folder logic from your working script
