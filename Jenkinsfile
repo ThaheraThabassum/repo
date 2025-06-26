@@ -7,7 +7,7 @@ pipeline {
         DEST_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         ZIP_FILE_NAME = "kmb_UI_UAT.zip"
-        LOCAL_ZIP_PATH = "/home/ubuntu/${ZIP_FILE_NAME}"
+        LOCAL_ZIP_PATH = "/home/thahera/${ZIP_FILE_NAME}"
         DEST_TMP_PATH = "/home/thahera"
         UI_DEPLOY_PATH = "/opt/lampp"
         UI_FOLDER_NAME = "kmb"
