@@ -121,19 +121,7 @@ pipeline {
                             echo "Setting permissions to 777..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}"
 
-                            echo "Renaming original zip file with date+time suffix..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
-                                cd ${DEST_TMP_PATH}
-                                FILE="${ZIP_FILE_NAME}"
-                                TIMESTAMP="${timestamp}"
-                                BASE_NAME="\${FILE%.zip}"
-                                if [ -f "\$FILE" ]; then
-                                    sudo mv "\$FILE" "\${BASE_NAME}_\${TIMESTAMP}.zip"
-                                    echo "Zip file renamed to: \${BASE_NAME}_\${TIMESTAMP}.zip"
-                                else
-                                    echo "Zip file not found to rename."
-                                fi
-                            '
+
                         """
                     }
                 }
