@@ -40,6 +40,9 @@ pipeline {
                                     echo "Backing up existing image on DEST_HOST as \$BACKUP_TAR_NAME..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd /home/thahera && sudo docker save -o \$BACKUP_TAR_NAME ${imageName} || echo 'Image not found for backup'"
 
+                                    echo "Setting permissions for transferred image TAR..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "chmod 777 /home/${REMOTE_USER}/${TAR_FILE_NAME_LOCAL}"
+
                                     echo "Loading new image on DEST_HOST..."
                                     #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd /home/thahera && sudo docker load -i \$IMAGE_TAR_NAME"
                                 """
