@@ -30,8 +30,8 @@ pipeline {
                                 // Save image on source
                                 sh """
                                     echo "Saving image on SOURCE_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo docker save -o ${imageTar} ${imageName} && sudo chmod 777 ${imageTar}"
-
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \\
+                                        "cd ${IMAGE_WORK_DIR} && printf '1234\\n' | sudo -S docker save -o ${imageTar} ${imageName} && sudo chmod 777 ${imageTar}"
                                 """
 
                                 // Transfer image to destination
