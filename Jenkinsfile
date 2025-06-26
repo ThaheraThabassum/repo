@@ -9,7 +9,7 @@ pipeline {
         ZIP_FILE_NAME = "kmb_UI_UAT.zip"
         LOCAL_ZIP_PATH = "/home/ubuntu/${ZIP_FILE_NAME}"
         DEST_TMP_PATH = "/home/ubuntu"
-        UI_DEPLOY_PATH = "/opt/lampp/htdocs"
+        UI_DEPLOY_PATH = "/opt/lampp"
         UI_FOLDER_NAME = "kmb"
     }
 
