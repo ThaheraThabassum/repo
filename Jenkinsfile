@@ -2,121 +2,64 @@ pipeline {
     agent any
 
     environment {
-        FILES_LIST_FILE = "files_to_deploy.txt"
         REMOTE_USER = "thahera"
         SOURCE_HOST = "3.111.252.210"
         DEST_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
-        SOURCE_BASE_PATH = "/home/ubuntu/ACE-Camunda"
-        DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda-DevOps"
+        ZIP_FILE_NAME = "kmb_UI_UAT.zip"
+        LOCAL_ZIP_PATH = "/home/ubuntu/${ZIP_FILE_NAME}"
+        DEST_TMP_PATH = "/home/ubuntu"
+        UI_DEPLOY_PATH = "/opt/lampp/htdocs"
+        UI_FOLDER_NAME = "kmb"
     }
 
     stages {
-        stage('Server to Server Deployment') {
+        stage('Transfer UI Zip File') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    script {
-                        def fileList = readFile(env.FILES_LIST_FILE).split("\n")
-                        for (filePath in fileList) {
-                            if (!filePath?.trim()) continue
-
-                            sh """#!/bin/bash
-                                set -e
-                                FILE_PATH='${filePath.trim()}'
-                                TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
-
-                                if [[ \"\$FILE_PATH\" = /* ]]; then
-                                    SRC_PATH=\"\$FILE_PATH\"
-                                    DEST_PATH=\"\$FILE_PATH\"
-                                else
-                                    SRC_PATH=\"${SOURCE_BASE_PATH}/\$FILE_PATH\"
-                                    DEST_PATH=\"${DEST_BASE_PATH}/\$FILE_PATH\"
-                                fi
-
-                                DEST_DIR=\$(dirname \"\$DEST_PATH\")
-                                FILE_NAME=\$(basename \"\$DEST_PATH\")
-
-                                echo "Checking if path is a directory on SOURCE_HOST..."
-                                IS_DIR=\$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"\$SRC_PATH\" ] && echo yes || echo no")
-
-                                if [ \"\$IS_DIR\" = "yes" ]; then
-                                    echo "Handling directory: \$SRC_PATH"
-                                    TEMP_DIR=\"./temp_\${FILE_NAME}_\${TIMESTAMP}\"
-                                    mkdir -p \"\$TEMP_DIR\"
-
-                                    echo "Copying directory from SOURCE_HOST to Jenkins workspace..."
-                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_DIR\"
-
-                                    echo "Backing up existing directory on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" && echo 'Backup done.' || echo 'No existing directory to backup.'"
-
-                                    echo "Creating destination directory on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
-
-                                    echo "Transferring directory from Jenkins workspace to DEST_HOST..."
-                                    scp -r -o StrictHostKeyChecking=no \"\$TEMP_DIR/\$(basename \"\$SRC_PATH\")\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_DIR/\"
-
-                                    echo "Setting permissions for transferred directory..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
-
-                                    echo "Cleaning up temp directory locally..."
-                                    rm -rf \"\$TEMP_DIR\"
-
-                                    echo "Cleaning up old backups for directory on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -dt \${FILE_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf"
-
-                                else
-                                    TEMP_FILE=\"./temp_\$FILE_NAME\"
-
-                                    echo "Creating destination directory on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
-
-                                    echo "Backing up existing file if present on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f \"\$DEST_PATH\" ]; then cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP; fi"
-
-                                    echo "Copying file from SOURCE_HOST to Jenkins workspace..."
-                                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_FILE\"
-
-                                    echo "Transferring file from Jenkins workspace to DEST_HOST..."
-                                    scp -o StrictHostKeyChecking=no \"\$TEMP_FILE\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_PATH\"
-
-                                    echo "Setting 777 permission on DEST_HOST for transferred file..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 \"\$DEST_PATH\""
-
-                                    echo "Cleaning up temp file locally..."
-                                    rm -f \"\$TEMP_FILE\"
-
-                                    echo "Cleaning up old file backups..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -t \${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
-                                fi
-                            """
-                        }
-                    }
+                    sh """
+                        echo "Copying UI zip file from local to UAT server..."
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${LOCAL_ZIP_PATH} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
+                    """
                 }
             }
         }
 
-        stage('Restart Docker on Destination') {
+        stage('Unzip and Deploy UI on UAT') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        echo "Stopping all running Docker containers on DEST_HOST..."
+                    sh """
+                        TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
+                        cd ${DEST_TMP_PATH}
+
+                        echo "Unzipping UI build on UAT server..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && unzip -o ${ZIP_FILE_NAME}"
+
+                        echo "Taking backup of existing UI folder..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH} && [ -d ${UI_FOLDER_NAME} ] && mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_\${TIMESTAMP} || echo 'No existing UI folder to backup.'"
+
+                        echo "Deploying new UI folder..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/"
+
+                        echo "Backing up pdf directory in new UI..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets && [ -d pdf ] && mv pdf pdf_\${TIMESTAMP} || echo 'No pdf folder found to backup.'"
+
+                        echo "Restoring pdf, usermanagement, masterdata from backup..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
-                            CONTAINERS=\\$(sudo docker ps -aq)
-                            if [ -n \\\"\\$CONTAINERS\\\" ]; then
-                                echo \\\"Stopping containers...\\\"
-                                sudo docker stop \\$CONTAINERS
-                                echo \\\"Removing containers...\\\"
-                                sudo docker rm \\$CONTAINERS
+                            cd ${UI_DEPLOY_PATH}
+                            BACKUP_DIR=\$(ls -td ${UI_FOLDER_NAME}_*/ | head -1 | tr -d /)
+                            if [ -d \$BACKUP_DIR ]; then
+                                cp -r \$BACKUP_DIR/assets/pdf ${UI_FOLDER_NAME}/assets/ || echo 'No pdf found in backup'
+                                cp -r \$BACKUP_DIR/usermanagement ${UI_FOLDER_NAME}/ || echo 'No usermanagement found in backup'
+                                cp -r \$BACKUP_DIR/masterdata ${UI_FOLDER_NAME}/ || echo 'No masterdata found in backup'
                             else
-                                echo \\\"No running containers to stop/remove.\\\"
+                                echo 'No backup directory to restore from.'
                             fi
-                            echo \\\"Recreating containers with docker-compose...\\\"
-                            cd ${DEST_BASE_PATH}
-                            sudo docker-compose up --build -d --force-recreate
                         '"
-                      
-                    '''
+
+                        echo "Setting permissions to 777..."
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}"
+                    """
                 }
             }
         }
