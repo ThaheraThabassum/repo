@@ -30,7 +30,8 @@ pipeline {
                                 // Save image on source
                                 sh """
                                     echo "Saving image on SOURCE_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker save -o ${imageTar} ${imageName}"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo docker save -o ${imageTar} ${imageName} && sudo chmod 777 ${imageTar}"
+
                                 """
 
                                 // Transfer image to destination
@@ -48,7 +49,7 @@ pipeline {
                                 // Load new image
                                 sh """
                                     echo "Loading transferred Docker image on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
+                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
                                 """
                             } else {
                                 // File/Folder logic from your working script
