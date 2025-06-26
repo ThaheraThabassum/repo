@@ -221,6 +221,9 @@ for _, row in databases.iterrows():
     table_name = row["table"]
     option = row["option"]
 
+    print(f'🔍 Processing: {db_name}.{table_name} | Option: {option} | Where: {where_condition} | columns_to_add: {columns_to_add } | datatype_changes: {datatype_changes} | revert: {revert}')  # Debug Print
+
+
 
     # Validate DB
     #check_db_cmd = f'mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE "{db_name}"\"'
