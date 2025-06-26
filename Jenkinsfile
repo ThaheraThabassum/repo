@@ -6,24 +6,44 @@ pipeline {
         SOURCE_HOST = "3.111.252.210"
         DEST_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
-        ZIP_FILE_NAME = "kmb_UI_UAT.zip"
-        LOCAL_ZIP_PATH = "/home/thahera/${ZIP_FILE_NAME}"
         DEST_TMP_PATH = "/home/thahera"
         UI_DEPLOY_PATH = "/opt/lampp"
         UI_FOLDER_NAME = "kmb"
     }
 
     stages {
+        stage('Read Deployment Zip File Names') {
+            steps {
+                script {
+                    def lines = readFile('ui_deploy_filenames.txt').readLines()
+                    env.ZIP_FILE_NAME = lines[0].trim()
+                    env.USERMGMT_ZIP_NAME = lines[1].trim()
+                    env.MASTERDATA_ZIP_NAME = lines[2].trim()
+                    env.LOCAL_ZIP_PATH = "${DEST_TMP_PATH}/${env.ZIP_FILE_NAME}"
+
+                    echo "UI Zip: ${env.ZIP_FILE_NAME}"
+                    echo "Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
+                    echo "Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
+                }
+            }
+        }
+
         stage('Transfer UI Zip File') {
             steps {
-                sshagent(credentials: [SSH_KEY]) {
+                sshagent(credentials: [env.SSH_KEY]) {
                     sh """
                         echo "Generating timestamp..."
                         TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
                         echo \$TIMESTAMP > timestamp.txt
 
                         echo "Copying UI zip file from local to UAT server..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${LOCAL_ZIP_PATH} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${ZIP_FILE_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
+
+                        echo "Copying usermanagement zip..."
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${USERMGMT_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
+
+                        echo "Copying masterdata zip..."
+                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${MASTERDATA_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
                     """
                 }
             }
@@ -31,7 +51,7 @@ pipeline {
 
         stage('Unzip and Deploy UI on UAT') {
             steps {
-                sshagent(credentials: [SSH_KEY]) {
+                sshagent(credentials: [env.SSH_KEY]) {
                     script {
                         def timestamp = readFile('timestamp.txt').trim()
 
