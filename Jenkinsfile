@@ -74,7 +74,7 @@ pipeline {
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}"
 
                             echo "Renaming original zip file with date suffix..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c """
                                 cd ${DEST_TMP_PATH}
                                 FILE="${ZIP_FILE_NAME}"
                                 BASE_NAME=$(basename "$FILE" .zip)
@@ -85,7 +85,7 @@ pipeline {
                                 else
                                     echo "Zip file not found to rename."
                                 fi
-                            '
+                            """
                         """
                     }
                 }
