@@ -41,7 +41,7 @@ pipeline {
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd /home/thahera && sudo docker save -o \$BACKUP_TAR_NAME ${imageName} || echo 'Image not found for backup'"
 
                                     echo "Loading new image on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd /home/thahera && sudo docker load -i \$IMAGE_TAR_NAME"
+                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd /home/thahera && sudo docker load -i \$IMAGE_TAR_NAME"
                                 """
                                 continue
                             }
