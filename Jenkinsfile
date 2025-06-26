@@ -33,15 +33,15 @@ pipeline {
                                 // Save image on SOURCE_HOST
                                 sh """
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \
-                                    'sudo docker save -o ${localTar} ${imageName}'
+                                    'docker save -o ${localTar} ${imageName}'
 
                                     scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${localTar} ${REMOTE_USER}@${DEST_HOST}:${localTar}
 
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                    'sudo docker save -o ${remoteTar} ${imageName} || echo "No existing image to backup."'
+                                    'docker save -o ${remoteTar} ${imageName} || echo "No existing image to backup."'
 
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                    'sudo docker load -i ${localTar}'
+                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                    #'sudo docker load -i ${localTar}'
                                 """
 
                             } else {
