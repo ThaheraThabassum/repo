@@ -30,7 +30,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
-                        cd ${DEST_TMP_PATH}
+                        #cd ${DEST_TMP_PATH}
 
                         echo "Unzipping UI build on UAT server..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && unzip -o ${ZIP_FILE_NAME}"
@@ -46,7 +46,7 @@ pipeline {
 
                         echo "Restoring pdf, usermanagement, masterdata from backup..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
-                            cd ${UI_DEPLOY_PATH}
+                            #cd ${UI_DEPLOY_PATH}
                             BACKUP_DIR=\$(ls -td ${UI_FOLDER_NAME}_*/ | head -1 | tr -d /)
                             if [ -d \$BACKUP_DIR ]; then
                                 cp -r \$BACKUP_DIR/assets/pdf ${UI_FOLDER_NAME}/assets/ || echo 'No pdf found in backup'
