@@ -33,25 +33,25 @@ pipeline {
                         #cd ${DEST_TMP_PATH}
 
                         echo "Unzipping UI build on UAT server..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && unzip -o ${ZIP_FILE_NAME}"
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${DEST_TMP_PATH} && sudo unzip -o ${ZIP_FILE_NAME}"
 
                         echo "Taking backup of existing UI folder..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH} && [ -d ${UI_FOLDER_NAME} ] && mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_\${TIMESTAMP} || echo 'No existing UI folder to backup.'"
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH} && [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_\${TIMESTAMP} || echo 'No existing UI folder to backup.'"
 
                         echo "Deploying new UI folder..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/"
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/"
 
                         echo "Backing up pdf directory in new UI..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets && [ -d pdf ] && mv pdf pdf_\${TIMESTAMP} || echo 'No pdf folder found to backup.'"
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets && [ -d pdf ] && sudo mv pdf pdf_\${TIMESTAMP} || echo 'No pdf folder found to backup.'"
 
                         echo "Restoring pdf, usermanagement, masterdata from backup..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
                             #cd ${UI_DEPLOY_PATH}
                             BACKUP_DIR=\$(ls -td ${UI_FOLDER_NAME}_*/ | head -1 | tr -d /)
                             if [ -d \$BACKUP_DIR ]; then
-                                cp -r \$BACKUP_DIR/assets/pdf ${UI_FOLDER_NAME}/assets/ || echo 'No pdf found in backup'
-                                cp -r \$BACKUP_DIR/usermanagement ${UI_FOLDER_NAME}/ || echo 'No usermanagement found in backup'
-                                cp -r \$BACKUP_DIR/masterdata ${UI_FOLDER_NAME}/ || echo 'No masterdata found in backup'
+                                sudo cp -r \$BACKUP_DIR/assets/pdf ${UI_FOLDER_NAME}/assets/ || echo 'No pdf found in backup'
+                                sudo cp -r \$BACKUP_DIR/usermanagement ${UI_FOLDER_NAME}/ || echo 'No usermanagement found in backup'
+                                sudo cp -r \$BACKUP_DIR/masterdata ${UI_FOLDER_NAME}/ || echo 'No masterdata found in backup'
                             else
                                 echo 'No backup directory to restore from.'
                             fi
