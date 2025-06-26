@@ -77,9 +77,11 @@ pipeline {
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
                                 cd ${DEST_TMP_PATH}
                                 TODAY=\$(date +%d_%m_%y)
-                                if [ -f "${ZIP_FILE_NAME}" ]; then
-                                    sudo mv "${ZIP_FILE_NAME}" "${ZIP_FILE_NAME%.zip}_\${TODAY}.zip"
-                                    echo "Zip file renamed to: ${ZIP_FILE_NAME%.zip}_\${TODAY}.zip"
+                                FILE="${ZIP_FILE_NAME}"
+                                BASE_NAME=\$(basename "\$FILE" .zip)
+                                if [ -f "\$FILE" ]; then
+                                    sudo mv "\$FILE" "\${BASE_NAME}_\${TODAY}.zip"
+                                    echo "Zip file renamed to: \${BASE_NAME}_\${TODAY}.zip"
                                 else
                                     echo "Zip file not found to rename."
                                 fi
