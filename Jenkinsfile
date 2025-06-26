@@ -20,6 +20,33 @@ pipeline {
                         for (filePath in fileList) {
                             if (!filePath?.trim()) continue
 
+                            // Handle Docker images separately
+                            if (filePath.trim().startsWith("image:")) {
+                                def imageName = filePath.trim().replace("image:", "").trim()
+                                def sanitizedImage = imageName.replaceAll(/[/:]/, "_")
+
+                                sh """#!/bin/bash
+                                    set -e
+                                    TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
+                                    IMAGE_TAR_NAME="${sanitizedImage}_local_\$TIMESTAMP.tar"
+                                    BACKUP_TAR_NAME="${sanitizedImage}_UAT_bak_\$TIMESTAMP.tar"
+
+                                    echo "Saving image on SOURCE_HOST as \$IMAGE_TAR_NAME..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "cd /home/thahera && sudo docker save -o \$IMAGE_TAR_NAME ${imageName}"
+
+                                    echo "Copying \$IMAGE_TAR_NAME to DEST_HOST..."
+                                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:/home/thahera/\$IMAGE_TAR_NAME ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
+
+                                    echo "Backing up existing image on DEST_HOST as \$BACKUP_TAR_NAME..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd /home/thahera && sudo docker save -o \$BACKUP_TAR_NAME ${imageName} || echo 'Image not found for backup'"
+
+                                    echo "Loading new image on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd /home/thahera && sudo docker load -i \$IMAGE_TAR_NAME"
+                                """
+                                continue
+                            }
+
+                            // Normal file/folder deployment block
                             sh """#!/bin/bash
                                 set -e
                                 FILE_PATH='${filePath.trim()}'
@@ -41,14 +68,14 @@ pipeline {
 
                                 if [ \"\$IS_DIR\" = "yes" ]; then
                                     echo "Handling directory: \$SRC_PATH"
-                                    TEMP_DIR=\"./temp_\${FILE_NAME}_\${TIMESTAMP}\"
+                                    TEMP_DIR="./temp_\${FILE_NAME}_\${TIMESTAMP}"
                                     mkdir -p \"\$TEMP_DIR\"
 
                                     echo "Copying directory from SOURCE_HOST to Jenkins workspace..."
                                     scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_DIR\"
 
                                     echo "Backing up existing directory on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" && echo 'Backup done.' || echo 'No existing directory to backup.'"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" || echo 'No existing directory to backup.'"
 
                                     echo "Creating destination directory on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
@@ -66,7 +93,7 @@ pipeline {
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -dt \${FILE_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf"
 
                                 else
-                                    TEMP_FILE=\"./temp_\$FILE_NAME\"
+                                    TEMP_FILE="./temp_\$FILE_NAME"
 
                                     echo "Creating destination directory on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
@@ -102,20 +129,19 @@ pipeline {
                     sh '''
                         echo "Stopping all running Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
-                            CONTAINERS=\\$(sudo docker ps -aq)
-                            if [ -n \\\"\\$CONTAINERS\\\" ]; then
-                                echo \\\"Stopping containers...\\\"
-                                sudo docker stop \\$CONTAINERS
-                                echo \\\"Removing containers...\\\"
-                                sudo docker rm \\$CONTAINERS
+                            CONTAINERS=\$(sudo docker ps -aq)
+                            if [ -n \"\$CONTAINERS\" ]; then
+                                echo \"Stopping containers...\"
+                                sudo docker stop \$CONTAINERS
+                                echo \"Removing containers...\"
+                                sudo docker rm \$CONTAINERS
                             else
-                                echo \\\"No running containers to stop/remove.\\\"
+                                echo \"No running containers to stop/remove.\"
                             fi
-                            echo \\\"Recreating containers with docker-compose...\\\"
+                            echo \"Recreating containers with docker-compose...\"
                             cd ${DEST_BASE_PATH}
                             sudo docker-compose up --build -d --force-recreate
                         '"
-                      
                     '''
                 }
             }
