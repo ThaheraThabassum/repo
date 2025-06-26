@@ -41,8 +41,8 @@ pipeline {
                                         "cd ${DEST_BASE_PATH} && sudo docker save -o ${safeImageName}_uat_bak_${timestamp}.tar ${imageName} || echo 'No image to backup.'"
 
                                     echo "Loading transferred Docker image on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "cd ${DEST_BASE_PATH} && sudo docker load -i ${safeImageName}_local_${timestamp}.tar"
+                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        #"cd ${DEST_BASE_PATH} && sudo docker load -i ${safeImageName}_local_${timestamp}.tar"
                                 """
 
                             } else {
