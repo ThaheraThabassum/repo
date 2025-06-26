@@ -9,6 +9,7 @@ pipeline {
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         SOURCE_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda-DevOps"
+        IMAGE_WORK_DIR = "/home/thahera"
     }
 
     stages {
@@ -17,84 +18,78 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     script {
                         def fileList = readFile(env.FILES_LIST_FILE).split("\n")
-
                         for (filePath in fileList) {
                             if (!filePath?.trim()) continue
-                            def trimmedPath = filePath.trim()
-
-                            if (trimmedPath.startsWith("image:")) {
-                                def imageName = trimmedPath.replace("image:", "").trim()
-                                def safeImageName = imageName.replaceAll("[/:]", "_")
+                            if (filePath.startsWith("image:")) {
+                                def imageName = filePath.replace("image:", "").trim()
+                                def imageBase = imageName.tokenize("/").last().replaceAll("[:/]", "_")
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
+                                def imageTar = "${imageBase}_${timestamp}.tar"
+                                def imageTarBak = "${imageBase}_uat_bak_${timestamp}.tar"
 
+                                // Save image on source
                                 sh """
-                                    echo "Saving Docker image from SOURCE_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \
-                                        "cd ${SOURCE_BASE_PATH} && sudo docker save -o ${safeImageName}_local_${timestamp}.tar ${imageName}"
-
-                                    echo "Transferring Docker image TAR to DEST_HOST..."
-                                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${SOURCE_BASE_PATH}/${safeImageName}_local_${timestamp}.tar \
-                                        ${REMOTE_USER}@${DEST_HOST}:${DEST_BASE_PATH}/
-
-                                    echo "Backing up existing Docker image on DEST_HOST (if exists)..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "cd ${DEST_BASE_PATH} && sudo docker save -o ${safeImageName}_uat_bak_${timestamp}.tar ${imageName} || echo 'No image to backup.'"
-
-                                    echo "Loading transferred Docker image on DEST_HOST..."
-                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        #"cd ${DEST_BASE_PATH} && sudo docker load -i ${safeImageName}_local_${timestamp}.tar"
+                                    echo "Saving image on SOURCE_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "cd ${IMAGE_WORK_DIR} && sudo docker save -o ${imageTar} ${imageName}"
                                 """
 
+                                // Transfer image to destination
+                                sh """
+                                    echo "Transferring image tar to DEST_HOST..."
+                                    scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${IMAGE_WORK_DIR}/${imageTar} ${REMOTE_USER}@${DEST_HOST}:${IMAGE_WORK_DIR}/
+                                """
+
+                                // Backup old image on destination
+                                sh """
+                                    echo "Backing up existing Docker image on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && sudo docker save -o ${imageTarBak} ${imageName} || echo 'No existing image to backup.'"
+                                """
+
+                                // Load new image
+                                sh """
+                                    echo "Loading transferred Docker image on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && sudo docker load -i ${imageTar}"
+                                """
                             } else {
+                                // File/Folder logic from your working script
                                 sh """#!/bin/bash
                                     set -e
-                                    FILE_PATH='${trimmedPath}'
+                                    FILE_PATH='${filePath.trim()}'
                                     TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
 
-                                    if [[ \"\$FILE_PATH\" = /* ]]; then
-                                        SRC_PATH=\"\$FILE_PATH\"
-                                        DEST_PATH=\"\$FILE_PATH\"
+                                    if [[ "\$FILE_PATH" = /* ]]; then
+                                        SRC_PATH="\$FILE_PATH"
+                                        DEST_PATH="\$FILE_PATH"
                                     else
-                                        SRC_PATH=\"${SOURCE_BASE_PATH}/\$FILE_PATH\"
-                                        DEST_PATH=\"${DEST_BASE_PATH}/\$FILE_PATH\"
+                                        SRC_PATH="${SOURCE_BASE_PATH}/\$FILE_PATH"
+                                        DEST_PATH="${DEST_BASE_PATH}/\$FILE_PATH"
                                     fi
 
-                                    DEST_DIR=\$(dirname \"\$DEST_PATH\")
-                                    FILE_NAME=\$(basename \"\$DEST_PATH\")
+                                    DEST_DIR=\$(dirname "\$DEST_PATH")
+                                    FILE_NAME=\$(basename "\$DEST_PATH")
 
                                     echo "Checking if path is a directory on SOURCE_HOST..."
                                     IS_DIR=\$(ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} "[ -d \"\$SRC_PATH\" ] && echo yes || echo no")
 
-                                    if [ \"\$IS_DIR\" = "yes" ]; then
+                                    if [ "\$IS_DIR" = "yes" ]; then
                                         echo "Handling directory: \$SRC_PATH"
                                         TEMP_DIR="./temp_\${FILE_NAME}_\${TIMESTAMP}"
-                                        mkdir -p \"\$TEMP_DIR\"
-
-                                        scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_DIR\"
-
-                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" || echo 'No directory to backup.'"
+                                        mkdir -p "\$TEMP_DIR"
+                                        scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"\$SRC_PATH" "\$TEMP_DIR"
+                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" || echo 'No existing dir to backup.'"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
-
-                                        scp -r -o StrictHostKeyChecking=no \"\$TEMP_DIR/\$(basename \"\$SRC_PATH\")\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_DIR/\"
-
+                                        scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\$(basename \"\$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_DIR/"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
-
-                                        rm -rf \"\$TEMP_DIR\"
-
+                                        rm -rf "\$TEMP_DIR"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -dt \${FILE_NAME}_*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf"
-
                                     else
-                                        TEMP_FILE=\"./temp_\$FILE_NAME\"
+                                        TEMP_FILE="./temp_\$FILE_NAME"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "if [ -f \"\$DEST_PATH\" ]; then cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP; fi"
-
-                                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:\"\$SRC_PATH\" \"\$TEMP_FILE\"
-                                        scp -o StrictHostKeyChecking=no \"\$TEMP_FILE\" ${REMOTE_USER}@${DEST_HOST}:\"\$DEST_PATH\"
-
+                                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"\$SRC_PATH" "\$TEMP_FILE"
+                                        scp -o StrictHostKeyChecking=no "\$TEMP_FILE" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_PATH"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 \"\$DEST_PATH\""
-
-                                        rm -f \"\$TEMP_FILE\"
-
+                                        rm -f "\$TEMP_FILE"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -t \${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
                                     fi
                                 """
@@ -111,16 +106,16 @@ pipeline {
                     sh '''
                         echo "Stopping all running Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
-                            CONTAINERS=\$(sudo docker ps -aq)
-                            if [ -n \"\$CONTAINERS\" ]; then
-                                echo \"Stopping containers...\"
-                                sudo docker stop \$CONTAINERS
-                                echo \"Removing containers...\"
-                                sudo docker rm \$CONTAINERS
+                            CONTAINERS=\\$(sudo docker ps -aq)
+                            if [ -n \\\"\\$CONTAINERS\\\" ]; then
+                                echo \\\"Stopping containers...\\\"
+                                sudo docker stop \\$CONTAINERS
+                                echo \\\"Removing containers...\\\"
+                                sudo docker rm \\$CONTAINERS
                             else
-                                echo \"No running containers to stop/remove.\"
+                                echo \\\"No running containers to stop/remove.\\\"
                             fi
-                            echo \"Recreating containers with docker-compose...\"
+                            echo \\\"Recreating containers with docker-compose...\\\"
                             cd ${DEST_BASE_PATH}
                             sudo docker-compose up --build -d --force-recreate
                         '"
