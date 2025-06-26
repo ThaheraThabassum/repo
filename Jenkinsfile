@@ -15,20 +15,47 @@ pipeline {
         stage('Read Deployment Zip File Names') {
             steps {
                 script {
-                    def lines = readFile('ui_deploy_filenames.txt').readLines()
-                    env.ZIP_FILE_NAME = lines[0].trim()
-                    env.USERMGMT_ZIP_NAME = lines[1].trim()
-                    env.MASTERDATA_ZIP_NAME = lines[2].trim()
-                    env.LOCAL_ZIP_PATH = "${DEST_TMP_PATH}/${env.ZIP_FILE_NAME}"
+                    def filePath = 'ui_deploy_filenames.txt'
+                    def lines = readFile(filePath).readLines().findAll { it?.trim() }
 
-                    echo "UI Zip: ${env.ZIP_FILE_NAME}"
-                    echo "Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
-                    echo "Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
+                    for (line in lines) {
+                        def parts = line.split('=', 2)
+                        if (parts.size() == 2) {
+                            def key = parts[0].trim().toUpperCase()
+                            def value = parts[1].trim()
+
+                            if (key == 'UI') {
+                                env.ZIP_FILE_NAME = value
+                                env.LOCAL_ZIP_PATH = "${DEST_TMP_PATH}/${value}"
+                            } else if (key == 'USERMANAGEMENT') {
+                                env.USERMGMT_ZIP_NAME = value
+                            } else if (key == 'MASTERDATA') {
+                                env.MASTERDATA_ZIP_NAME = value
+                            }
+                        }
+                    }
+
+                    if (!env.ZIP_FILE_NAME) {
+                        echo "⚠ UI zip file name not provided. UI deployment will be skipped."
+                    } else {
+                        echo "✔ UI Zip: ${env.ZIP_FILE_NAME}"
+                    }
+
+                    if (env.USERMGMT_ZIP_NAME) {
+                        echo "✔ Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
+                    }
+
+                    if (env.MASTERDATA_ZIP_NAME) {
+                        echo "✔ Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
+                    }
                 }
             }
         }
 
         stage('Transfer UI Zip File') {
+            when {
+                expression { return env.ZIP_FILE_NAME }
+            }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
                     sh """
@@ -39,17 +66,18 @@ pipeline {
                         echo "Copying UI zip file from local to UAT server..."
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${ZIP_FILE_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
 
-                        echo "Copying usermanagement zip..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${USERMGMT_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
+                        ${env.USERMGMT_ZIP_NAME ? "echo 'Copying usermanagement zip...'\nscp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${env.USERMGMT_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/" : ""}
 
-                        echo "Copying masterdata zip..."
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${MASTERDATA_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
+                        ${env.MASTERDATA_ZIP_NAME ? "echo 'Copying masterdata zip...'\nscp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${env.MASTERDATA_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/" : ""}
                     """
                 }
             }
         }
 
         stage('Unzip and Deploy UI on UAT') {
+            when {
+                expression { return env.ZIP_FILE_NAME }
+            }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
                     script {
