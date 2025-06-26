@@ -76,14 +76,14 @@ pipeline {
                             echo "Renaming original zip file with date suffix..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c """
                                 cd ${DEST_TMP_PATH}
-                                FILE="${ZIP_FILE_NAME}"
-                                BASE_NAME=$(basename "$FILE" .zip)
-                                TIMESTAMP="' + timestamp + '"
-                                if [ -f "$FILE" ]; then
-                                    sudo mv "$FILE" "${BASE_NAME}_${TIMESTAMP}.zip"
-                                    echo "Zip file renamed to: ${BASE_NAME}_${TIMESTAMP}.zip"
+                                FILE='${ZIP_FILE_NAME}'
+                                BASE_NAME=\$(basename \"\$FILE\" .zip)
+                                TIMESTAMP='${timestamp}'
+                                if [ -f \"\$FILE\" ]; then
+                                    sudo mv \"\$FILE\" \"\${BASE_NAME}_\${TIMESTAMP}.zip\"
+                                    echo \"Zip file renamed to: \${BASE_NAME}_\${TIMESTAMP}.zip\"
                                 else
-                                    echo "Zip file not found to rename."
+                                    echo \"Zip file not found to rename.\"
                                 fi
                             """
                         """
