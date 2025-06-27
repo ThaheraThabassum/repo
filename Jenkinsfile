@@ -37,11 +37,12 @@ pipeline {
                                 def imageTarBak = "${imageBase}_uat_bak_${timestamp}.tar"
 
 
-                                //  Remove previous transferred tar before copying new one
+                                //  Remove previous transferred tar before generating new one
+                            
                                 sh """
-                                    echo " Cleaning up previously generated tar file in source server..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
-                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar"
+                                    echo "🧹 Cleaning up old .tar files on SOURCE_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \\
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar || echo 'No old tars to clean.'"
                                 """
                                 
                                 // Save image on source
@@ -51,7 +52,7 @@ pipeline {
                                         "cd ${IMAGE_WORK_DIR} && printf '1234\\n' | sudo -S docker save -o ${imageTar} ${imageName}"
                                 """
 
-                                // Set permission (with separate sudo and password input)
+                                // Set permission to genarated tar in source server
                                 sh """
                                     echo "Setting permissions on image tar..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \\
