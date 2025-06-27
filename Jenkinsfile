@@ -46,7 +46,7 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
                             set -e
                             #sudo apt install -y python3-pandas python3-openpyxl
                             echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
