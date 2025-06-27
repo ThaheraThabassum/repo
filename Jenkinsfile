@@ -27,34 +27,33 @@ pipeline {
                             FILE_NAME=$(basename "$FILE_PATH")
                             DEST_DIR=$(dirname "$DEST_PATH")
 
-                            # Backup current file/folder as _rev_ if it exists
                             echo "🔎 Checking existence on DEST_HOST..."
+
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
-                                if [ -e \"$DEST_PATH\" ]; then
-                                    echo \"📦 Backing up existing item: $DEST_PATH -> ${DEST_PATH}_rev_${TIMESTAMP}\"
-                                    cp -r \"$DEST_PATH\" \"${DEST_PATH}_rev_${TIMESTAMP}\"
+                                if [ -e \\\"$DEST_PATH\\\" ]; then
+                                    echo \\\"📦 Backing up: $DEST_PATH -> ${DEST_PATH}_rev_${TIMESTAMP}\\\"
+                                    printf \\\'1234\\\\n\\\' | sudo -S cp -r \\\"$DEST_PATH\\\" \\\"${DEST_PATH}_rev_${TIMESTAMP}\\\"
                                 else
-                                    echo \"❌ $DEST_PATH does not exist, skipping backup.\"
+                                    echo \\\"❌ $DEST_PATH does not exist, skipping backup.\\\"
                                 fi
                             '"
 
-                            # Try to restore from latest *_timestamp backup (excluding _rev_)
                             echo "🔁 Attempting restore from previous backup..."
+
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
-                                cd \"$DEST_DIR\"
+                                cd \\\"$DEST_DIR\\\"
+                                LATEST=\\$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v _rev_ | head -n1)
 
-                                LATEST=\$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
-
-                                if [ -n \"$LATEST\" ] && [ -e \"$LATEST\" ]; then
-                                    echo \"✅ Restoring backup: \$LATEST -> $DEST_PATH\"
-                                    rm -rf \"$DEST_PATH\"
-                                    cp -r \"$LATEST\" \"$DEST_PATH\"
+                                if [ -n \\\"\\$LATEST\\\" ] && [ -e \\\"\\$LATEST\\\" ]; then
+                                    echo \\\"✅ Restoring backup: \\$LATEST -> $DEST_PATH\\\"
+                                    printf \\\'1234\\\\n\\\' | sudo -S rm -rf \\\"$DEST_PATH\\\"
+                                    printf \\\'1234\\\\n\\\' | sudo -S cp -r \\\"\\$LATEST\\\" \\\"$DEST_PATH\\\"
                                 else
-                                    echo \"⚠️ No valid non-_rev_ backup found to restore for $DEST_PATH\"
+                                    echo \\\"⚠️ No valid backup found to restore.\\\"
                                 fi
 
-                                echo \"🧹 Cleaning up old _rev_ backups...\"
-                                ls -dt ${FILE_NAME}_rev_* 2>/dev/null | tail -n +3 | xargs -r rm -rf
+                                echo \\\"🧹 Cleaning up old _rev_ backups...\\\"
+                                ls -dt ${FILE_NAME}_rev_* 2>/dev/null | tail -n +3 | xargs -r sudo rm -rf
                             '"
 
                         done < ${FILES_LIST_FILE}
@@ -74,15 +73,16 @@ pipeline {
                         #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
                             #CONTAINERS=\\$(sudo docker ps -aq)
                             #if [ -n \\\"\\$CONTAINERS\\\" ]; then
-                                #echo \\\"Stopping containers...\\\"
+                                #echo \\\"🛑 Stopping containers...\\\"
                                 #sudo docker stop \\$CONTAINERS
-                                #echo \\\"Removing containers...\\\"
+                                echo \\\"🗑️ Removing containers...\\\"
                                 #sudo docker rm \\$CONTAINERS
                             #else
-                                #echo \\\"No running containers to stop/remove.\\\"
+                                #echo \\\"ℹ️ No running containers to stop/remove.\\\"
                             fi
-                            #echo \\\"Recreating containers with docker-compose...\\\"
-                            #cd ${BASE_PATH}
+
+                            #echo \\\"🚀 Recreating containers with docker-compose...\\\"
+                            cd ${BASE_PATH}
                             #sudo docker-compose up --build -d --force-recreate
                         '"
                     '''
