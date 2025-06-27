@@ -53,10 +53,16 @@ pipeline {
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker save -o ${imageTarBak} ${imageName} || echo 'No existing image to backup.'"
                                 """
 
+                                sh """
+                                    echo "Setting permissions on image tar..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
+                                        "cd ${IMAGE_WORK_DIR} && printf '1234\\n' | sudo -S chmod 777 ${imageTar}"
+                                """
+
                                 // Load new image
                                 sh """
                                     echo "Loading transferred Docker image on DEST_HOST..."
-                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
                                 """
                             } else {
                                 // File/Folder logic from your working script
