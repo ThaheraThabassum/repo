@@ -1,110 +1,82 @@
 pipeline {
     agent any
+
     environment {
-        GIT_REPO = 'git@github.com:algonox/ACE-Camunda-DevOps.git'
-        TARGET_BRANCH = 'kmb_uat'
-        SSH_KEY = 'jenkins-ssh-key1'
         FILES_LIST_FILE = "files_to_revert.txt"
-        WORKSPACE_DIR = "${WORKSPACE}"
-        REMOTE_USER = 'thahera'         
-        REMOTE_HOST = '65.1.176.9'
-        UAT_SSH_KEY = '08cc52e2-f8f2-4479-87eb-f8307f8d23a8'
+        REMOTE_USER = "thahera"
+        REMOTE_HOST = "65.1.176.9"
+        SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
+        DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda-DevOps"
     }
+
     stages {
-        stage('Prepare Repository') {
+        stage('Direct Revert on DEST Server') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        echo "Checking if repository already exists..."
-                        if [ -d "repo/.git" ]; then
-                            echo "Repository exists. Fetching latest changes..."
-                            cd repo
-                            git remote set-url origin ${GIT_REPO} # Correct remote URL
-                            git fetch --all
-                            git reset --hard origin/${TARGET_BRANCH}
-                            git clean -fd
-                            git checkout ${TARGET_BRANCH}
-                            git pull --rebase=false origin ${TARGET_BRANCH}
-                        else
-                            echo "Cloning repository..."
-                            git clone ${GIT_REPO} repo
-                            cd repo
-                            git checkout ${TARGET_BRANCH}
-                            git pull --rebase=false origin ${TARGET_BRANCH}
-                        fi
-                    '''
-                }
-            }
-        }
+                    sh '''#!/bin/bash
+                        set -e
+                        echo "Reading files to revert from ${FILES_LIST_FILE}..."
 
-        stage('Revert Files/Folders') {
-            steps {
-                sshagent(credentials: [SSH_KEY]) {
-                    sh '''
-                        cd repo
-                        git checkout ${TARGET_BRANCH}
-                        git pull --rebase=false origin ${TARGET_BRANCH}
+                        while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
+                            [[ -z "$FILE_PATH" ]] && continue
+                            
+                            TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+                            DEST_PATH="${DEST_BASE_PATH}/${FILE_PATH}"
+                            DEST_DIR=$(dirname "$DEST_PATH")
+                            FILE_NAME=$(basename "$DEST_PATH")
 
-                        TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+                            echo "========== Reverting: $FILE_PATH =========="
 
-                        echo "Reverting files/folders..."
-                        cp ${WORKSPACE_DIR}/${FILES_LIST_FILE} .
-
-                        while IFS= read -r item; do
-                            if [ -e "$item" ]; then
-                                BACKUP_ITEM="${item}_rev_${TIMESTAMP}"
-                                echo "Backing up $item -> $BACKUP_ITEM"
-                                mv "$item" "$BACKUP_ITEM"
-                                git add "$BACKUP_ITEM"
-
-                                LATEST_BACKUP=$(ls -td ${item}_* | grep -E "${item}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}" | grep -v "_rev_" | head -n 1)
-
-                                if [ -n "$LATEST_BACKUP" ] && [ -e "$LATEST_BACKUP" ]; then
-                                    echo "Restoring latest backup: $LATEST_BACKUP -> $item"
-                                    mv "$LATEST_BACKUP" "$item"
-                                    git add "$item"
+                            # Backup current file/folder to _rev_
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+                                if [ -e '$DEST_PATH' ]; then
+                                    echo 'Creating _rev_ backup...'
+                                    mv '$DEST_PATH' '${DEST_PATH}_rev_${TIMESTAMP}'
                                 else
-                                    echo "No valid backup found for $item, skipping restore."
+                                    echo '❌ $DEST_PATH does not exist, skipping backup.'
                                 fi
+                            "
 
-                                echo "Cleaning up old _rev_ backups for $item..."
-                                OLD_BACKUPS=$(ls -td ${item}_rev_* | tail -n +3)
-                                if [ -n "$OLD_BACKUPS" ]; then
-                                    echo "Deleting old backups: $OLD_BACKUPS"
-                                    rm -rf $OLD_BACKUPS
-                                    git rm -r $OLD_BACKUPS
+                            # Restore latest timestamped backup (non-_rev_)
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+                                cd '$DEST_DIR'
+                                LATEST=\$(ls -td ${FILE_NAME}_* | grep -v '_rev_' | head -n1 || true)
+                                if [ -n \"\$LATEST\" ]; then
+                                    echo 'Restoring \$LATEST to $DEST_PATH...'
+                                    mv \"\$LATEST\" \"$DEST_PATH\"
+                                else
+                                    echo '⚠️ No non-_rev_ backup found for $DEST_PATH'
                                 fi
+                            "
 
-                            else
-                                echo "File/folder $item not found, skipping."
-                            fi
+                            # Cleanup older _rev_ backups (keep 1 latest)
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+                                cd '$DEST_DIR'
+                                echo 'Cleaning up old _rev_ backups...'
+                                ls -td ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r rm -rf
+                            "
+
                         done < ${FILES_LIST_FILE}
-
-                        git commit -m "Reverted files based on ${FILES_LIST_FILE} and cleaned old backups"
-                        git push origin ${TARGET_BRANCH}
                     '''
                 }
             }
         }
-        stage('Deploy to UAT Server') {
-            steps {
-                withCredentials([string(credentialsId: 'GITHUB_PAT', variable: 'GITHUB_TOKEN')]) {
-                    sshagent(credentials: [UAT_SSH_KEY]) {
-                        sh '''
-                            echo "Connecting to UAT server ${REMOTE_HOST}..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} <<EOF
-                            echo "Successfully connected to ${REMOTE_HOST}"
-                            cd /home/ubuntu/ACE-Camunda-DevOps/
-                            echo "Pulling latest changes from Git using Jenkins-stored credentials..."
-                            echo "\n" | sudo git pull https://${GITHUB_TOKEN}@github.com/algonox/ACE-Camunda-DevOps.git ${TARGET_BRANCH}
 
-                            echo "Restarting Docker containers..."
-                            sudo docker-compose up --build -d --force-recreate
-                            echo "Deployment completed."
-                            exit
-                            EOF
-                        '''
-                    }
+        stage('Restart Docker on Destination') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh '''
+                        echo "Restarting Docker containers on DEST_HOST..."
+                        #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
+                            #CONTAINERS=\\$(sudo docker ps -aq)
+                            #if [ -n \\\"\\$CONTAINERS\\\" ]; then
+                                #sudo docker stop \\$CONTAINERS
+                                #sudo docker rm \\$CONTAINERS
+                            fi
+                            cd ${DEST_BASE_PATH}
+                            #sudo docker-compose up --build -d --force-recreate
+                        '"
+                    '''
                 }
             }
         }
