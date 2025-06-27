@@ -102,7 +102,7 @@ for _, row in df.iterrows():
             print(f"❌ Error generating: {dump_file}")
 
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\n".join(script_list))
+    f.write("\\n".join(script_list))
 print("✅ All scripts written.")
 EOPYTHON
 EOF
