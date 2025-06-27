@@ -31,7 +31,14 @@ pipeline {
                                 sh """
                                     echo "Saving image on SOURCE_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \\
-                                        "cd ${IMAGE_WORK_DIR} && printf '1234\\n' | sudo -S docker save -o ${imageTar} ${imageName} && sudo chmod 777 ${imageTar}"
+                                        "cd ${IMAGE_WORK_DIR} && printf '1234\\n' | sudo -S docker save -o ${imageTar} ${imageName}"
+                                """
+
+                                // Set permission (with separate sudo and password input)
+                                sh """
+                                    echo "Setting permissions on image tar..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \\
+                                        "cd ${IMAGE_WORK_DIR} && printf '1234\\n' | sudo -S chmod 777 ${imageTar}"
                                 """
 
                                 // Transfer image to destination
