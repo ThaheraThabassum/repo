@@ -245,7 +245,7 @@ for _, row in df.iterrows():
                 AND table_name LIKE '{}_%' 
                 AND table_name NOT LIKE '%_rev_%' 
                 ORDER BY table_name ASC LIMIT 1;
-                """.format(db,name)
+                """.format(db, table)
             oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query.strip()}"'
             try:
                 oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
