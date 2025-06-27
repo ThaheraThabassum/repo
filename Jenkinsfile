@@ -48,7 +48,9 @@ pipeline {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
                             set -e
-                            sudo apt install -y python3-pandas python3-openpyxl
+                            #sudo apt install -y python3-pandas python3-openpyxl
+                            echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
+
 
                             python3 << EOPYTHON
 import pandas as pd
