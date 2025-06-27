@@ -23,21 +23,21 @@ pipeline {
 
         stage('Pull Latest Changes') {
             steps {
-                sh """
+                sh '''
                     git reset --hard
                     git clean -fd
                     git pull origin kotak_db
-                """
+                '''
             }
         }
 
         stage('Upload Excel to Remote Servers') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
+                    sh '''
                         scp -o StrictHostKeyChecking=no ${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_EXCEL_PATH}
                         scp -o StrictHostKeyChecking=no ${LOCAL_EXCEL_FILE} ${REMOTE_USER}@${DEST_HOST}:${REMOTE_EXCEL_PATH}
-                    """
+                    '''
                 }
             }
         }
@@ -102,7 +102,6 @@ for _, row in df.iterrows():
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
     f.write("\n".join(script_list))
 print("✅ All scripts written.")
-
 EOPYTHON
 EOF
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
@@ -135,142 +134,138 @@ def mysql(cmd):
     return subprocess.run(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{cmd}"', shell=True)
 
 for _, row in df.iterrows():
-    db_name = str(row["database"]).strip()
-    table_name = str(row["table"]).strip()
-    option = str(row.get("option", "")).strip().lower()
-    where = str(row.get("where_condition", "")).strip()
-    cols_add = str(row.get("columns_need_to_add", "")).strip()
-    dt_mod = str(row.get("change_the_datatype_for_columns", "")).strip()
-    revert = str(row.get("revert", "")).strip().lower()
+    try:
+        db = str(row["database"]).strip()
+        table = str(row["table"]).strip()
+        option = str(row.get("option", "")).strip().lower()
+        where = str(row.get("where_condition", "")).strip()
+        cols_add = str(row.get("columns_need_to_add", "")).strip()
+        dt_mod = str(row.get("change_the_datatype_for_columns", "")).strip()
+        revert = str(row.get("revert", "")).strip().lower()
 
-    if revert == "yes":
-        renamed = f"{table_name}_rev_{timestamp}"
-        mysql(f"RENAME TABLE {db_name}.{table_name} TO {db_name}.{renamed}")
-        try:
-            get_latest = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db_name}' AND table_name LIKE '{table_name}_%' AND table_name NOT LIKE '%_rev_%' ORDER BY table_name DESC LIMIT 1;"
+        if revert == "yes":
+            renamed = f"{table}_rev_{timestamp}"
+            mysql(f"RENAME TABLE {db}.{table} TO {db}.{renamed}")
+            get_latest = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db}' AND table_name LIKE '{table}_%' AND table_name NOT LIKE '%_rev_%' ORDER BY table_name DESC LIMIT 1;"
             latest = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_latest}"', shell=True).decode().strip()
             if latest:
-                mysql(f"RENAME TABLE {db_name}.{latest} TO {db_name}.{table_name}")
-        except:
-            pass
-        continue
+                mysql(f"RENAME TABLE {db}.{latest} TO {db}.{table}")
+            continue
 
-    should_skip_backup = True
-    if option and option != "nan":
-        should_skip_backup = False
-    if cols_add and cols_add.lower() != "nan":
-        for col in cols_add.split(","):
-            colname = col.strip().split()[0]
-            check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{colname}'"
-            exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
-            if exists == '0':
-                should_skip_backup = False
-                break
-    if dt_mod and dt_mod.lower() != "nan":
-        for mod in dt_mod.split(","):
-            col = mod.strip().split()[0]
-            check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col}'"
-            exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
-            if exists == '1':
-                should_skip_backup = False
-                break
+        should_skip_backup = True
+        if option and option != "nan":
+            should_skip_backup = False
+        if cols_add and cols_add.lower() != "nan":
+            for col in cols_add.split(","):
+                colname = col.strip().split()[0]
+                check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{colname}'"
+                exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
+                if exists == '0':
+                    should_skip_backup = False
+                    break
+        if dt_mod and dt_mod.lower() != "nan":
+            for mod in dt_mod.split(","):
+                col = mod.strip().split()[0]
+                check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{col}'"
+                exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
+                if exists == '1':
+                    should_skip_backup = False
+                    break
 
-    if not should_skip_backup:
-        backup = f"{table_name}_{timestamp}"
-        mysql(f"CREATE TABLE {db_name}.{backup} LIKE {db_name}.{table_name}")
-        mysql(f"INSERT INTO {db_name}.{backup} SELECT * FROM {db_name}.{table_name}")
+        if not should_skip_backup:
+            backup = f"{table}_{timestamp}"
+            mysql(f"CREATE TABLE {db}.{backup} LIKE {db}.{table}")
+            mysql(f"INSERT INTO {db}.{backup} SELECT * FROM {db}.{table}")
 
-    changes_made = False
+        changes_made = False
+        if cols_add and cols_add.lower() != "nan":
+            for col in cols_add.split(","):
+                colname = col.strip().split()[0]
+                colcheck = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{colname}'"
+                exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{colcheck}"', shell=True).decode().strip()
+                if exists == '0':
+                    mysql(f"ALTER TABLE {db}.{table} ADD COLUMN {col.strip()}")
+                    print(f"➕ Column added: {col.strip()}")
+                    changes_made = True
 
-    if cols_add and cols_add.lower() != "nan":
-        for col in cols_add.split(","):
-            colname = col.strip().split()[0]
-            colcheck = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{colname}'"
-            exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{colcheck}"', shell=True).decode().strip()
-            if exists == '0':
-                mysql(f"ALTER TABLE {db_name}.{table_name} ADD COLUMN {col.strip()}")
-                print(f"➕ Column added: {col.strip()}")
-                changes_made = True
+        if dt_mod and dt_mod.lower() != "nan":
+            for mod in dt_mod.split(","):
+                col = mod.strip().split()[0]
+                check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{col}'"
+                exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
+                if exists == '1':
+                    mysql(f"ALTER TABLE {db}.{table} MODIFY COLUMN {mod.strip()}")
+                    print(f"🛠 Column modified: {mod.strip()}")
+                    changes_made = True
 
-    if dt_mod and dt_mod.lower() != "nan":
-        for mod in dt_mod.split(","):
-            col = mod.strip().split()[0]
-            check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db_name}' AND table_name='{table_name}' AND column_name='{col}'"
-            exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
-            if exists == '1':
-                mysql(f"ALTER TABLE {db_name}.{table_name} MODIFY COLUMN {mod.strip()}")
-                print(f"🛠 Column modified: {mod.strip()}")
-                changes_made = True
+        if option == "data":
+            del_q = f"DELETE FROM {db}.{table}" if not where or where.lower() == "nan" else f"DELETE FROM {db}.{table} WHERE {where}"
+            mysql(del_q)
+        elif option == "structure":
+            mysql(f"DROP TABLE {db}.{table}")
 
-    if option == "data":
-        del_q = f"DELETE FROM {db_name}.{table_name}" if not where or where.lower() == "nan" else f"DELETE FROM {db_name}.{table_name} WHERE {where}"
-        mysql(del_q)
-    elif option == "structure":
-        mysql(f"DROP TABLE {db_name}.{table_name}")
+        script_file = next((s for s in scripts if s.startswith(table)), None)
+        if script_file:
+            subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" {db} < /home/thahera/{script_file}', shell=True)
+            print(f"✅ Loaded script: {script_file}")
+            changes_made = True
 
-    script_file = next((s for s in scripts if s.startswith(table_name)), None)
-    if script_file:
-        subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" {db_name} < /home/thahera/{script_file}', shell=True)
-        print(f"✅ Loaded script: {script_file}")
-        changes_made = True
-
-    if changes_made:
-        # Delete old backups (excluding `_rev_` backups)
-        cleanup_query = f'''
-        SELECT table_name FROM information_schema.tables 
-        WHERE table_schema='{db_name}' 
-        AND table_name LIKE '{table_name}_%' 
-        AND table_name NOT LIKE '%_rev_%'  -- Exclude _rev_ backups
-        ORDER BY table_name DESC LIMIT 3, 100;
-        '''
-        cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
-
-        try:
-            old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\n")
-            for backup in old_backups:
-                if backup:
-                    delete_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{backup};"'
-                    subprocess.call(delete_backup, shell=True)
-                    print(f"🗑 Deleted old backup: {backup}")
-        except subprocess.CalledProcessError as e:
-            print(f"⚠️ No old backups found or error occurred: {e}")
-
-        # Compare oldest normal backup and delete older _rev_ backups
-        get_oldest_backup_query = f'''
+        if changes_made:
+            cleanup_query = f"""
             SELECT table_name FROM information_schema.tables 
-            WHERE table_schema='{db_name}' 
-            AND table_name LIKE '{table_name}_%' 
-            AND table_name NOT LIKE '%_rev_%'
-            ORDER BY table_name ASC LIMIT 1;
-        '''
-        oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query}"'
-        try:
-            oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
-            if oldest_backup:
-                print(f"🔎 Oldest retained backup: {oldest_backup}")
+            WHERE table_schema='{db}' 
+            AND table_name LIKE '{table}_%' 
+            AND table_name NOT LIKE '%_rev_%' 
+            ORDER BY table_name DESC LIMIT 3, 100;
+            """
+            cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
+            try:
+                old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\n")
+                for backup in old_backups:
+                    if backup:
+                        delete_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db}.{backup};"'
+                        subprocess.call(delete_backup, shell=True)
+                        print(f"🗑 Deleted old backup: {backup}")
+            except subprocess.CalledProcessError as e:
+                print(f"⚠️ No old backups found or error occurred: {e}")
 
-                rev_backup_query = f'''
-                    SELECT table_name FROM information_schema.tables 
-                    WHERE table_schema='{db_name}' 
-                    AND table_name LIKE '{table_name}_rev_%';
-                '''
-                rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
-                rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\n")
+            get_oldest_backup_query = f"""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema='{db}' 
+                AND table_name LIKE '{table}_%' 
+                AND table_name NOT LIKE '%_rev_%' 
+                ORDER BY table_name ASC LIMIT 1;
+            """
+            oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query}"'
+            try:
+                oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
+                if oldest_backup:
+                    print(f"🔎 Oldest retained backup: {oldest_backup}")
 
-                for rev_backup in rev_backups:
-                    if rev_backup:
-                        normal_time = oldest_backup.replace(table_name + "_", "")
-                        rev_time = rev_backup.replace(table_name + "_rev_", "")
+                    rev_backup_query = f"""
+                        SELECT table_name FROM information_schema.tables 
+                        WHERE table_schema='{db}' 
+                        AND table_name LIKE '{table}_rev_%';
+                    """
+                    rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
+                    rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\n")
 
-                        if rev_time < normal_time:
-                            delete_rev_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db_name}.{rev_backup};"'
-                            subprocess.call(delete_rev_backup, shell=True)
-                            print(f"🗑 Deleted old _rev_ backup: {rev_backup}")
-            else:
-                print(f"⚠️ No normal backups found for {table_name}, skipping _rev_ backup cleanup.")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Error fetching oldest backup: {e}")
+                    for rev_backup in rev_backups:
+                        if rev_backup:
+                            normal_time = oldest_backup.replace(table + "_", "")
+                            rev_time = rev_backup.replace(table + "_rev_", "")
+                            if rev_time < normal_time:
+                                delete_rev_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db}.{rev_backup};"'
+                                subprocess.call(delete_rev_backup, shell=True)
+                                print(f"🗑 Deleted old _rev_ backup: {rev_backup}")
+                else:
+                    print(f"⚠️ No normal backups found for {table}, skipping _rev_ backup cleanup.")
+            except subprocess.CalledProcessError as e:
+                print(f"❌ Error fetching oldest backup: {e}")
 
+    except Exception as e:
+        print(f"⚠️ Error while processing row: {e}")
+        continue
 EOPYTHON
 EOF
                     '''
