@@ -27,6 +27,14 @@ pipeline {
                                 def imageTar = "${imageBase}_${timestamp}.tar"
                                 def imageTarBak = "${imageBase}_uat_bak_${timestamp}.tar"
 
+
+                                //  Remove previous transferred tar before copying new one
+                                sh """
+                                    echo "🧹 Cleaning up previously generated tar file in source server..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar"
+                                """
+                                
                                 // Save image on source
                                 sh """
                                     echo "Saving image on SOURCE_HOST..."
@@ -41,12 +49,26 @@ pipeline {
                                         "cd ${IMAGE_WORK_DIR} && printf '1234\\n' | sudo -S chmod 777 ${imageTar}"
                                 """
 
+                                //  Remove previous transferred tar before copying new one
+                                sh """
+                                    echo "🧹 Cleaning up previously transferred .tar on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar"
+                                """
+                                
                                 // Transfer image to destination
                                 sh """
                                     echo "Transferring image tar to DEST_HOST..."
                                     scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${IMAGE_WORK_DIR}/${imageTar} ${REMOTE_USER}@${DEST_HOST}:${IMAGE_WORK_DIR}/
                                 """
 
+                                // Remove old backup before creating new one
+                                sh """
+                                    echo "🧹 Cleaning up previous UAT backup tar on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_uat_bak_*.tar"
+                                """
+                                
                                 // Backup old image on destination
                                 sh """
                                     echo "Backing up existing Docker image on DEST_HOST..."
