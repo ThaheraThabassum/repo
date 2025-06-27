@@ -13,12 +13,12 @@ pipeline {
         stage('Revert Files/Folders Directly on Server') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh '''
                         echo "📂 Reading files to revert from ${FILES_LIST_FILE}..."
                         TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
 
                         while IFS= read -r FILE_PATH; do
-                            FILE_PATH=$(echo "$FILE_PATH" | xargs)
+                            FILE_PATH=$(echo "$FILE_PATH" | xargs)  # Trim whitespace
                             [ -z "$FILE_PATH" ] && continue
 
                             echo "========== Reverting: $FILE_PATH =========="
@@ -30,30 +30,30 @@ pipeline {
                             echo "🔎 Checking existence on DEST_HOST..."
 
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "bash -c '
-                                if [ -e \\"$DEST_PATH\\" ]; then
-                                    echo 📦 Backing up: $DEST_PATH -> ${DEST_PATH}_rev_${TIMESTAMP}
-                                    echo 1234 | sudo -S cp -r \\"$DEST_PATH\\" \\"${DEST_PATH}_rev_${TIMESTAMP}\\"
+                                if [ -e \"${DEST_PATH}\" ]; then
+                                    echo \"📦 Backing up: ${DEST_PATH} -> ${DEST_PATH}_rev_${TIMESTAMP}\"
+                                    echo 1234 | sudo -S cp -r \"${DEST_PATH}\" \"${DEST_PATH}_rev_${TIMESTAMP}\"
                                 else
-                                    echo ❌ $DEST_PATH does not exist, skipping backup.
+                                    echo \"❌ ${DEST_PATH} does not exist, skipping backup.\"
                                 fi
                             '"
 
                             echo "🔁 Attempting restore from previous backup..."
 
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "bash -c '
-                                cd \\"$DEST_DIR\\"
-                                LATEST=$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v _rev_ | head -n1)
+                                cd \"${DEST_DIR}\"
+                                LATEST=\$(ls -td \"${FILE_NAME}\"_* 2>/dev/null | grep -v _rev_ | head -n1)
 
-                                if [ -n \\"$LATEST\\" ] && [ -e \\"$LATEST\\" ]; then
-                                    echo ✅ Restoring backup: $LATEST -> $DEST_PATH
-                                    echo 1234 | sudo -S rm -rf \\"$DEST_PATH\\"
-                                    echo 1234 | sudo -S cp -r \\"$LATEST\\" \\"$DEST_PATH\\"
+                                if [ -n \"\$LATEST\" ] && [ -e \"\$LATEST\" ]; then
+                                    echo \"✅ Restoring backup: \$LATEST -> ${DEST_PATH}\"
+                                    echo 1234 | sudo -S rm -rf \"${DEST_PATH}\"
+                                    echo 1234 | sudo -S cp -r \"\$LATEST\" \"${DEST_PATH}\"
                                 else
-                                    echo ⚠️ No valid backup found to restore.
+                                    echo \"⚠️ No valid backup found to restore.\"
                                 fi
 
-                                echo 🧹 Cleaning up old _rev_ backups...
-                                ls -dt ${FILE_NAME}_rev_* 2>/dev/null | tail -n +3 | xargs -r sudo rm -rf
+                                echo \"🧹 Cleaning up old _rev_ backups...\"
+                                ls -dt \"${FILE_NAME}\"_rev_* 2>/dev/null | tail -n +3 | xargs -r sudo rm -rf
                             '"
 
                         done < ${FILES_LIST_FILE}
@@ -65,22 +65,23 @@ pipeline {
         stage('Restart Docker on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh '''
                         echo "==============================="
                         echo "🔄 Restarting Docker containers on DEST_HOST"
                         echo "==============================="
 
                         #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "bash -c '
-                            echo 📦 Stopping running containers if any...
                             #CONTAINERS=$(sudo docker ps -aq)
-                            #if [ -n \\"$CONTAINERS\\" ]; then
+                            #if [ -n \"$CONTAINERS\" ]; then
+                                #echo \"🛑 Stopping containers...\"
                                 #sudo docker stop $CONTAINERS
+                                #echo \"🗑️ Removing containers...\"
                                 #sudo docker rm $CONTAINERS
                             #else
-                                #echo ℹ️ No running containers.
+                                #echo \"ℹ️ No running containers to stop/remove.\"
                             fi
 
-                            echo 🚀 Recreating containers with docker-compose...
+                            echo \"🚀 Recreating containers with docker-compose...\"
                             cd ${BASE_PATH}
                             #sudo docker-compose up --build -d --force-recreate
                         '"
