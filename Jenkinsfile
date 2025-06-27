@@ -111,7 +111,9 @@ EOPYTHON
 EOF
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '${SUDO_PASSWORD}' | sudo -S chmod 777 /home/thahera/*.sql"
+
                     '''
                 }
             }
