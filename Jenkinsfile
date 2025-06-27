@@ -66,7 +66,7 @@ pipeline {
                     sh '''
                         echo "🔄 Restarting Docker containers..."
                         #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
-                            3CONTAINERS=\\$(sudo docker ps -aq)
+                            #CONTAINERS=\\$(sudo docker ps -aq)
                             #if [ -n \\\"\\$CONTAINERS\\\" ]; then
                                 #sudo docker stop \\$CONTAINERS
                                 #sudo docker rm \\$CONTAINERS
