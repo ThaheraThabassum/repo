@@ -218,14 +218,15 @@ for _, row in df.iterrows():
             changes_made = True
 
         if changes_made:
-            cleanup_query = f"""
+            cleanup_query = """
             SELECT table_name FROM information_schema.tables 
-            WHERE table_schema='{db}' 
-            AND table_name LIKE '{table}_%' 
+            WHERE table_schema='{}' 
+            AND table_name LIKE '{}_%' 
             AND table_name NOT LIKE '%_rev_%' 
             ORDER BY table_name DESC LIMIT 3, 100;
-            """
-            cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
+            """.format(db, table)
+            #cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
+            cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query.strip()}"'
             try:
                 #old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\n")
                 old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\\n")
@@ -238,25 +239,25 @@ for _, row in df.iterrows():
             except subprocess.CalledProcessError as e:
                 print(f"⚠️ No old backups found or error occurred: {e}")
 
-            get_oldest_backup_query = f"""
+            get_oldest_backup_query = """
                 SELECT table_name FROM information_schema.tables 
-                WHERE table_schema='{db}' 
-                AND table_name LIKE '{table}_%' 
+                WHERE table_schema='{}' 
+                AND table_name LIKE '{}_%' 
                 AND table_name NOT LIKE '%_rev_%' 
                 ORDER BY table_name ASC LIMIT 1;
-            """
-            oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query}"'
+                """.format(db,name)
+            oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query.strip()}"'
             try:
                 oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
                 if oldest_backup:
                     print(f"🔎 Oldest retained backup: {oldest_backup}")
 
-                    rev_backup_query = f"""
+                    rev_backup_query = """
                         SELECT table_name FROM information_schema.tables 
-                        WHERE table_schema='{db}' 
-                        AND table_name LIKE '{table}_rev_%';
-                    """
-                    rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
+                        WHERE table_schema='{}' 
+                        AND table_name LIKE '{}_rev_%';
+                        """.format(db, table)
+                    rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query.strip()}"'
                     rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\n")
 
                     for rev_backup in rev_backups:
