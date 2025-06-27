@@ -10,16 +10,16 @@ pipeline {
     }
 
     stages {
-        stage('Direct Revert on DEST Server') {
+        stage('Revert Files and Folders on DEST Server') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''#!/bin/bash
                         set -e
-                        echo "Reading files from ${FILES_LIST_FILE}..."
+                        echo "📘 Reading files from ${FILES_LIST_FILE}..."
 
                         while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
                             [[ -z "$FILE_PATH" ]] && continue
-                            
+
                             TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                             DEST_PATH="$DEST_BASE_PATH/$FILE_PATH"
                             DEST_DIR=$(dirname "$DEST_PATH")
@@ -31,28 +31,28 @@ pipeline {
                             ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "
                                 if [ -e '$DEST_PATH' ]; then
                                     echo '🛡️ Creating _rev_ backup...'
-                                    echo '1234' | sudo -S mv '$DEST_PATH' '${DEST_PATH}_rev_${TIMESTAMP}'
+                                    sudo mv '$DEST_PATH' '${DEST_PATH}_rev_${TIMESTAMP}'
                                 else
-                                    echo '❌ $DEST_PATH does not exist, skipping _rev_ backup.'
+                                    echo '⚠️ $DEST_PATH does not exist, skipping backup.'
                                 fi
                             "
 
-                            # Restore latest timestamped backup (non-_rev_)
+                            # Restore latest backup (excluding _rev_)
                             ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "
                                 cd '$DEST_DIR'
-                                LATEST=\$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
-                                if [ -n \"$LATEST\" ]; then
-                                    echo '🔁 Restoring $LATEST to $DEST_PATH...'
-                                    echo '1234' | sudo -S mv \"$LATEST\" \"$DEST_PATH\"
+                                LATEST=\$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1 || echo '')
+                                if [ -n \"\$LATEST\" ]; then
+                                    echo '🔁 Restoring \$LATEST to $DEST_PATH...'
+                                    sudo mv \"\$LATEST\" \"$DEST_PATH\"
                                 else
-                                    echo '⚠️ No valid backup found for $DEST_PATH'
+                                    echo '❌ No valid backup found for $DEST_PATH'
                                 fi
                             "
 
-                            # Cleanup older _rev_ backups (keep only latest one)
+                            # Cleanup older _rev_ backups (keep only the latest one)
                             ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "
                                 cd '$DEST_DIR'
-                                echo '🧹 Cleaning old _rev_ backups...'
+                                echo '🧹 Cleaning up old _rev_ backups...'
                                 ls -td ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
                             "
 
@@ -66,17 +66,24 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        echo "Restarting Docker containers on DEST_HOST..."
+                        echo "==============================="
+                        echo "🔁 Restarting Docker containers on DEST_HOST"
+                        echo "==============================="
+
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
-                            CONTAINERS=\$(sudo docker ps -aq)
-                            if [ -n \"\$CONTAINERS\" ]; then
-                                sudo docker stop \$CONTAINERS
-                                sudo docker rm \$CONTAINERS
+                            CONTAINERS=\\$(sudo docker ps -aq)
+                            if [ -n \\\"\\$CONTAINERS\\\" ]; then
+                                echo \\\"🛑 Stopping containers...\\\"
+                                #sudo docker stop \\$CONTAINERS
+                                echo \\\"🧽 Removing containers...\\\"
+                                #sudo docker rm \\$CONTAINERS
                             else
-                                echo \"No running containers to stop/remove.\"
+                                echo \\\"✅ No running containers to stop/remove.\\\"
                             fi
+
+                            echo \\\"🚀 Recreating containers with docker-compose...\\\"
                             cd ${DEST_BASE_PATH}
-                            sudo docker-compose up --build -d --force-recreate
+                            #sudo docker-compose up --build -d --force-recreate
                         '"
                     '''
                 }
