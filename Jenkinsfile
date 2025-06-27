@@ -228,7 +228,8 @@ for _, row in df.iterrows():
             #cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
             #cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query.strip()}"'
             cleanup_query = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db}' AND table_name LIKE '{table}_%' AND table_name NOT LIKE '%_rev_%' ORDER BY table_name DESC LIMIT 3, 100;"
-            cleanup_command = f'''mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'''
+            cleanup_command = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"{cleanup_query}\\\""
+            #cleanup_command = f'''mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'''
 
             try:
                 old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\n")
