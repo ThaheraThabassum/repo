@@ -46,11 +46,9 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'EOF'
                             set -e
-                            #sudo apt install -y python3-pandas python3-openpyxl
-                            echo '${SUDO_PASSWORD}' | sudo -S apt install -y python3-pandas python3-openpyxl
-
+                            sudo apt install -y python3-pandas python3-openpyxl
 
                             python3 << EOPYTHON
 import pandas as pd
@@ -69,16 +67,13 @@ for _, row in df.iterrows():
     option = str(row["option"]).strip().lower()
     where = str(row.get("where_condition", "")).strip()
 
-    #check_db = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE '{db}'\""
-    check_db = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SHOW DATABASES LIKE '{db}'\\\""
-
+    check_db = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SHOW DATABASES LIKE '{db}'\""
     db_exists = subprocess.run(check_db, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if not db_exists:
         print(f"❌ Skipping - DB not found: {db}")
         continue
 
-    #check_table = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\""
-    check_table = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\\\""
+    check_table = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\""
     table_exists = subprocess.run(check_table, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if table_exists != '1':
         print(f"❌ Skipping - Table not found: {db}.{table}")
@@ -105,15 +100,13 @@ for _, row in df.iterrows():
             print(f"❌ Error generating: {dump_file}")
 
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\\n".join(script_list))
+    f.write("\n".join(script_list))
 print("✅ All scripts written.")
 EOPYTHON
 EOF
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
-                        #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '${SUDO_PASSWORD}' | sudo -S chmod 777 /home/thahera/*.sql"
-
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
                     '''
                 }
             }
@@ -218,23 +211,16 @@ for _, row in df.iterrows():
             changes_made = True
 
         if changes_made:
-            #cleanup_query = """
+            cleanup_query = f"""
             SELECT table_name FROM information_schema.tables 
-            WHERE table_schema='{}' 
-            AND table_name LIKE '{}_%' 
+            WHERE table_schema='{db}' 
+            AND table_name LIKE '{table}_%' 
             AND table_name NOT LIKE '%_rev_%' 
             ORDER BY table_name DESC LIMIT 3, 100;
-            """.format(db, table)
-            #cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
-            #cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query.strip()}"'
-            cleanup_query = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db}' AND table_name LIKE '{table}_%' AND table_name NOT LIKE '%_rev_%' ORDER BY table_name DESC LIMIT 3, 100;"
-            cleanup_command = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"{cleanup_query}\\\""
-            #cleanup_command = f'''mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'''
-
+            """
+            cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
             try:
                 old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\n")
-                #old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\\n")
-
                 for backup in old_backups:
                     if backup:
                         delete_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db}.{backup};"'
@@ -243,25 +229,25 @@ for _, row in df.iterrows():
             except subprocess.CalledProcessError as e:
                 print(f"⚠️ No old backups found or error occurred: {e}")
 
-            get_oldest_backup_query = """
+            get_oldest_backup_query = f"""
                 SELECT table_name FROM information_schema.tables 
-                WHERE table_schema='{}' 
-                AND table_name LIKE '{}_%' 
+                WHERE table_schema='{db}' 
+                AND table_name LIKE '{table}_%' 
                 AND table_name NOT LIKE '%_rev_%' 
                 ORDER BY table_name ASC LIMIT 1;
-                """.format(db, table)
-            oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query.strip()}"'
+            """
+            oldest_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_oldest_backup_query}"'
             try:
                 oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
                 if oldest_backup:
                     print(f"🔎 Oldest retained backup: {oldest_backup}")
 
-                    rev_backup_query = """
+                    rev_backup_query = f"""
                         SELECT table_name FROM information_schema.tables 
-                        WHERE table_schema='{}' 
-                        AND table_name LIKE '{}_rev_%';
-                        """.format(db, table)
-                    rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query.strip()}"'
+                        WHERE table_schema='{db}' 
+                        AND table_name LIKE '{table}_rev_%';
+                    """
+                    rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
                     rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\n")
 
                     for rev_backup in rev_backups:
