@@ -20,7 +20,16 @@ pipeline {
                         def fileList = readFile(env.FILES_LIST_FILE).split("\n")
                         for (filePath in fileList) {
                             if (!filePath?.trim()) continue
+
+                            echo "======================================="
+                            echo " Processing: ${filePath.trim()}"
+                            echo "======================================="
+
+
                             if (filePath.startsWith("image:")) {
+                                echo "📦 Detected Docker image: ${filePath.trim()}"
+
+
                                 def imageName = filePath.replace("image:", "").trim()
                                 def imageBase = imageName.tokenize("/").last().replaceAll("[:/]", "_")
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
@@ -30,7 +39,7 @@ pipeline {
 
                                 //  Remove previous transferred tar before copying new one
                                 sh """
-                                    echo "🧹 Cleaning up previously generated tar file in source server..."
+                                    echo " Cleaning up previously generated tar file in source server..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
                                         "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar"
                                 """
@@ -51,7 +60,7 @@ pipeline {
 
                                 //  Remove previous transferred tar before copying new one
                                 sh """
-                                    echo "🧹 Cleaning up previously transferred .tar on DEST_HOST..."
+                                    echo " Cleaning up previously transferred .tar on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
                                         "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar"
                                 """
@@ -64,7 +73,7 @@ pipeline {
 
                                 // Remove old backup before creating new one
                                 sh """
-                                    echo "🧹 Cleaning up previous UAT backup tar on DEST_HOST..."
+                                    echo " Cleaning up previous UAT backup tar on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
                                         "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_uat_bak_*.tar"
                                 """
@@ -90,7 +99,7 @@ pipeline {
                                 
                                 // Load new image
                                 sh """
-                                    echo "Loading transferred Docker image on DEST_HOST..."
+                                    echo "✅ Loading Docker image on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
                                 """
                             } else {
@@ -99,6 +108,11 @@ pipeline {
                                     set -e
                                     FILE_PATH='${filePath.trim()}'
                                     TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
+
+                                    echo "======================================="
+                                    echo " Starting deployment for: \$FILE_PATH"
+                                    echo "======================================="
+
 
                                     if [[ "\$FILE_PATH" = /* ]]; then
                                         SRC_PATH="\$FILE_PATH"
@@ -172,6 +186,12 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
+
+                        echo "==============================="
+                        echo "🔄 Restarting Docker containers on DEST_HOST"
+                        echo "==============================="
+
+
                         echo "Stopping all running Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
                             CONTAINERS=\\$(sudo docker ps -aq)
