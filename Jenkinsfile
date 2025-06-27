@@ -27,7 +27,7 @@ pipeline {
 
 
                             if (filePath.startsWith("image:")) {
-                                echo "📦 Detected Docker image: ${filePath.trim()}"
+                                echo "📦 Detected Docker ${filePath.trim()}"
 
 
                                 def imageName = filePath.replace("image:", "").trim()
