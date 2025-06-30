@@ -13,50 +13,50 @@ pipeline {
         stage('Revert Files/Folders on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    script {
-                        def fileList = readFile(env.FILES_LIST_FILE).split("\n")
-                        for (filePath in fileList) {
-                            if (!filePath?.trim()) continue
+                    sh '''#!/bin/bash
+                        set -e
+                        echo "📄 Reading files from ${FILES_LIST_FILE}..."
 
-                            def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
-                            def destPath = "${env.DEST_BASE_PATH}/${filePath.trim()}"
-                            def destDir = "${destPath.substring(0, destPath.lastIndexOf("/"))}"
-                            def fileName = filePath.trim().tokenize("/").last()
+                        while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
+                            [[ -z "$FILE_PATH" ]] && continue
 
-                            sh """
-                                echo "======== 🔄 Reverting: ${filePath} ========"
-                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
-                                    set -e
-                                    cd "${destDir}"
+                            TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+                            DEST_PATH="${DEST_BASE_PATH}/$FILE_PATH"
+                            DEST_DIR=$(dirname "$DEST_PATH")
+                            FILE_NAME=$(basename "$DEST_PATH")
 
-                                    if [ -f "${fileName}" ]; then
-                                        echo "🛡️ Backing up file as _rev_..."
-                                        echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
-                                    elif [ -d "${fileName}" ]; then
-                                        echo "🛡️ Backing up directory as _rev_..."
-                                        echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
-                                    else
-                                        echo "⚠️ ${fileName} does not exist, skipping _rev_ backup."
-                                    fi
+                            echo "======== 🔄 Reverting: $FILE_PATH ========"
 
-                                    echo "🔍 Looking for latest non-_rev_ backup..."
-                                    BACKUP=\\$\(ls -1td ${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1\\)
+                            ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST bash -c "'
+                                set -e
+                                cd \"${DEST_DIR}\"
 
-                                    echo "📦 Found backup: \\$BACKUP"
+                                if [ -f \"${FILE_NAME}\" ]; then
+                                    echo \"🛡️ Backing up file as _rev_...\"
+                                    echo \"1234\" | sudo -S mv \"${FILE_NAME}\" \"${FILE_NAME}_rev_${TIMESTAMP}\"
+                                elif [ -d \"${FILE_NAME}\" ]; then
+                                    echo \"🛡️ Backing up directory as _rev_...\"
+                                    echo \"1234\" | sudo -S mv \"${FILE_NAME}\" \"${FILE_NAME}_rev_${TIMESTAMP}\"
+                                else
+                                    echo \"⚠️ \\${FILE_NAME} does not exist, skipping _rev_ backup.\"
+                                fi
 
-                                    if [ -n "\\$BACKUP" ]; then
-                                        echo "🔁 Restoring \\$BACKUP → ${fileName}"
-                                        echo "1234" | sudo -S mv "\\$BACKUP" "${fileName}"
-                                    else
-                                        echo "⚠️ No valid backup found for ${fileName}"
-                                    fi
+                                echo \"🔍 Looking for latest non-_rev_ backup...\"
+                                BACKUP=\\$(ls -1td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
-                                    echo "🧹 Cleaning old _rev_ backups..."
-                                    ls -1t ${fileName}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
-                                '
-                            """
-                        }
-                    }
+                                if [ -n \\\"\\${BACKUP}\\\" ]; then
+                                    echo \"📦 Found backup: \\${BACKUP}\"
+                                    echo \"🔁 Restoring \\${BACKUP} → ${FILE_NAME}\"
+                                    echo \"1234\" | sudo -S mv \\\"\\${BACKUP}\\\" \\\"${FILE_NAME}\\\"
+                                else
+                                    echo \"⚠️ No valid backup found for ${FILE_NAME}\"
+                                fi
+
+                                echo \"🧹 Cleaning old _rev_ backups...\"
+                                ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                            '"
+                        done < ${FILES_LIST_FILE}
+                    '''
                 }
             }
         }
@@ -68,7 +68,7 @@ pipeline {
                         echo "🔄 Restarting Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
                             cd ${DEST_BASE_PATH}
-                            # Uncomment if needed
+                            # Uncomment below if needed
                             # sudo docker-compose up --build -d --force-recreate
                         '"
                     '''
