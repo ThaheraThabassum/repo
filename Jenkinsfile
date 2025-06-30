@@ -105,7 +105,14 @@ with open(TRANSFERRED_SCRIPTS, "w") as f:
 print("✅ All scripts written.")
 EOPYTHON
 EOF
+                }
+            }
+        }
 
+        stage('Transfer Scripts to DEST_HOST') {
+            steps {
+                sshagent(credentials: [SSH_KEY]) {
+                    sh """
                         echo "📥 Fetching transferred_scripts.txt from REMOTE_HOST to local..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "cat ${TRANSFERRED_SCRIPTS}" > transferred_scripts.txt
 
@@ -115,8 +122,8 @@ EOF
                         echo "📦 Transferring scripts listed in transferred_scripts.txt..."
                         while read script; do
                             echo "🔁 Transferring \$script..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "[ -f /home/thahera/\$script ]" && \
-                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/\$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ || \
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "[ -f /home/thahera/\$script ]" && \\
+                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/\$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ || \\
                             echo "⚠️ Skipped \$script (not found on REMOTE_HOST)"
                         done < transferred_scripts.txt
 
@@ -126,6 +133,7 @@ EOF
                 }
             }
         }
+
 
 
         stage('Backup, Revert, Deploy in UAT') {
