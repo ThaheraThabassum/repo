@@ -27,30 +27,31 @@ pipeline {
 
                             echo "======== 🔄 Reverting: $FILE_PATH ========"
 
-                            ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST bash -c "'
+                            ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST <<EOF
                                 set -e
-                                cd \"${DEST_DIR}\"
+                                cd "$DEST_DIR"
 
-                                if [ -e \"${DEST_PATH}\" ]; then
-                                    echo \"🛡️ Backing up current file/folder as _rev_\"
-                                    echo \"1234\" | sudo -S mv \"${DEST_PATH}\" \"${DEST_PATH}_rev_${TIMESTAMP}\"
+                                if [ -e "$DEST_PATH" ]; then
+                                    echo "🛡️ Backing up current file/folder as _rev_"
+                                    echo "1234" | sudo -S mv "$DEST_PATH" "${DEST_PATH}_rev_${TIMESTAMP}"
                                 else
-                                    echo \"⚠️ ${DEST_PATH} does not exist, skipping _rev_ backup.\"
+                                    echo "⚠️ $DEST_PATH does not exist, skipping _rev_ backup."
                                 fi
 
-                                echo \"🔍 Looking for latest non-_rev_ backup...\"
-                                LATEST=\$(ls -td \"${FILE_NAME}\"_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
+                                echo "🔍 Looking for latest non-_rev_ backup..."
+                                LATEST=\$(ls -td "${FILE_NAME}"_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
 
-                                if [ -n \"\$LATEST\" ]; then
-                                    echo \"🔁 Restoring backup: \$LATEST to ${DEST_PATH}\"
-                                    echo \"1234\" | sudo -S mv \"\$LATEST\" \"${DEST_PATH}\"
+                                if [ -n "\$LATEST" ]; then
+                                    echo "🔁 Restoring backup: \$LATEST to $DEST_PATH"
+                                    echo "1234" | sudo -S mv "\$LATEST" "$DEST_PATH"
                                 else
-                                    echo \"⚠️ No valid backup found for ${FILE_NAME}\"
+                                    echo "⚠️ No valid backup found for $FILE_NAME"
                                 fi
 
-                                echo \"🧹 Cleaning old _rev_ backups (keeping latest one)...\"
-                                ls -td \"${FILE_NAME}_rev_\"* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
-                            '"
+                                echo "🧹 Cleaning old _rev_ backups (keeping latest one)..."
+                                ls -td "${FILE_NAME}_rev_"* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+EOF
+
                         done < ${FILES_LIST_FILE}
                     '''
                 }
