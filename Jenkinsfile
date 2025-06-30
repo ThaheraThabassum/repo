@@ -98,7 +98,8 @@ for _, row in df.iterrows():
             print(f"✅ Script generated: {dump_file}")
         except subprocess.CalledProcessError:
             print(f"❌ Error generating: {dump_file}")
-
+            
+TRANSFERRED_SCRIPTS = "${TRANSFERRED_SCRIPTS}"
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
     f.write("\n".join(script_list))
 print("✅ All scripts written.")
