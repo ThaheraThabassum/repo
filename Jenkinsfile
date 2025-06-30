@@ -42,13 +42,20 @@ pipeline {
             }
         }
 
+        #stage('Generate SQL Scripts (No Backup)') {
+            #steps {
+                #sshagent(credentials: [SSH_KEY]) {
+                    #sh """
+                        #ssh -tt -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
+                            #set -e
+                            #echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
         stage('Generate SQL Scripts (No Backup)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
-                        ssh -tt -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
-                            set -e
-                            echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'bash -s' << 'EOF'
+set -e
+echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
 
                             python3 << EOPYTHON
 import pandas as pd
