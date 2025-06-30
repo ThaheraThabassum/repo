@@ -173,7 +173,9 @@ pipeline {
                                         rm -f "\$TEMP_FILE"
 
                                         echo "Cleaning up old file backups..."
-                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -t \${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
+                                        #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -t \${FILE_NAME}_* 2>/dev/null | tail -n +4 | xargs -r rm -f"
+                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "cd \"\$DEST_DIR\" && ls -t ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | tail -n +4 | xargs -r rm -f"
+
                                     fi
                                 """
                             }
