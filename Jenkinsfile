@@ -42,13 +42,6 @@ pipeline {
             }
         }
 
-        #stage('Generate SQL Scripts (No Backup)') {
-            #steps {
-                #sshagent(credentials: [SSH_KEY]) {
-                    #sh """
-                        #ssh -tt -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
-                            #set -e
-                            #echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
         stage('Generate SQL Scripts (No Backup)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
