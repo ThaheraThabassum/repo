@@ -162,7 +162,10 @@ df = pd.read_excel("${REMOTE_EXCEL_PATH}")
 with open("${TRANSFERRED_SCRIPTS}", "r") as f:
     scripts = [line.strip() for line in f.readlines()]
 
+print("🚀 Starting row-wise processing...")
+
 def mysql(cmd):
+    print(f"⚙️ Executing MySQL command: {cmd}")
     return subprocess.run(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "{cmd}"', shell=True)
 
 for _, row in df.iterrows():
@@ -175,29 +178,41 @@ for _, row in df.iterrows():
         dt_mod = str(row.get("change_the_datatype_for_columns", "")).strip()
         revert = str(row.get("revert", "")).strip().lower()
 
+        print(f"\n📌 Processing DB: {db}, Table: {table}")
+
         if revert == "yes":
+            print("🔁 Reverting changes as per config...")
             renamed = f"{table}_rev_{timestamp}"
             mysql(f"RENAME TABLE {db}.{table} TO {db}.{renamed}")
             get_latest = f"SELECT table_name FROM information_schema.tables WHERE table_schema='{db}' AND table_name LIKE '{table}_%' AND table_name NOT LIKE '%_rev_%' ORDER BY table_name DESC LIMIT 1;"
             latest = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{get_latest}"', shell=True).decode().strip()
             if latest:
                 mysql(f"RENAME TABLE {db}.{latest} TO {db}.{table}")
+            print("✅ Revert completed.")
             continue
 
         should_skip_backup = True
+        print("🕵️ Checking if backup is needed...")
+
         if option and option != "nan":
             should_skip_backup = False
+            print("📍 Operation is present, backup required.")
 
         if cols_add and cols_add.lower() != "nan":
+            print("🧪 Checking columns to add...")
             for col in cols_add.split(","):
                 colname = col.strip().split()[0]
                 check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{colname}'"
                 exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
                 if exists == '0':
+                    print(f"🔎 Column '{colname}' not found, backup required.")
                     should_skip_backup = False
                     break
+                else:
+                    print(f"✔️ Column '{colname}' already exists.")
 
         if dt_mod and dt_mod.lower() != "nan":
+            print("🧪 Checking datatype modifications...")
             for mod in dt_mod.split(","):
                 mod = mod.strip()
                 if not mod:
@@ -218,55 +233,65 @@ for _, row in df.iterrows():
                         shell=True
                     ).decode().strip().lower()
                     if existing_type != new_type.lower():
+                        print(f"🛠 Datatype mismatch for '{col}': {existing_type} → {new_type}")
                         should_skip_backup = False
-                        print(f"🛠 Datatype change required for {col}: {existing_type} → {new_type}")
                         break
                     else:
-                        print(f"ℹ️ Datatype same for {col}, skipping backup.")
+                        print(f"ℹ️ Datatype for '{col}' unchanged, no backup needed.")
                 except subprocess.CalledProcessError as e:
-                    print(f"⚠️ Could not verify datatype for {col}, assuming backup needed.")
+                    print(f"⚠️ Could not fetch datatype for '{col}', assuming backup needed.")
                     should_skip_backup = False
                     break
 
         if not should_skip_backup:
+            print("📦 Creating backup before making changes...")
             backup = f"{table}_{timestamp}"
             mysql(f"CREATE TABLE {db}.{backup} LIKE {db}.{table}")
             mysql(f"INSERT INTO {db}.{backup} SELECT * FROM {db}.{table}")
+            print(f"✅ Backup taken: {backup}")
+        else:
+            print("🛑 Skipping backup — no effective changes expected.")
 
         changes_made = False
+
         if cols_add and cols_add.lower() != "nan":
+            print("➕ Applying column additions...")
             for col in cols_add.split(","):
                 colname = col.strip().split()[0]
                 colcheck = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{colname}'"
                 exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{colcheck}"', shell=True).decode().strip()
                 if exists == '0':
                     mysql(f"ALTER TABLE {db}.{table} ADD COLUMN {col.strip()}")
-                    print(f"➕ Column added: {col.strip()}")
+                    print(f"✅ Column added: {col.strip()}")
                     changes_made = True
 
         if dt_mod and dt_mod.lower() != "nan":
+            print("🛠 Applying datatype modifications...")
             for mod in dt_mod.split(","):
                 col = mod.strip().split()[0]
                 check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{col}'"
                 exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
                 if exists == '1':
                     mysql(f"ALTER TABLE {db}.{table} MODIFY COLUMN {mod.strip()}")
-                    print(f"🛠 Column modified: {mod.strip()}")
+                    print(f"✅ Column modified: {mod.strip()}")
                     changes_made = True
 
         if option == "data":
+            print("🧹 Deleting data as per option...")
             del_q = f"DELETE FROM {db}.{table}" if not where or where.lower() == "nan" else f"DELETE FROM {db}.{table} WHERE {where}"
             mysql(del_q)
         elif option == "structure":
+            print("💣 Dropping structure as per option...")
             mysql(f"DROP TABLE {db}.{table}")
 
         script_file = next((s for s in scripts if s.startswith(table)), None)
         if script_file:
+            print(f"📥 Loading script: {script_file}")
             subprocess.call(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" {db} < /home/thahera/{script_file}', shell=True)
-            print(f"✅ Loaded script: {script_file}")
             changes_made = True
 
         if changes_made:
+            print("🧹 Cleaning old backups...")
             cleanup_query = f"""
             SELECT table_name FROM information_schema.tables 
             WHERE table_schema='{db}' 
@@ -283,7 +308,7 @@ for _, row in df.iterrows():
                         subprocess.call(delete_backup, shell=True)
                         print(f"🗑 Deleted old backup: {backup}")
             except subprocess.CalledProcessError as e:
-                print(f"⚠️ No old backups found or error occurred: {e}")
+                print(f"⚠️ Cleanup issue: {e}")
 
             get_oldest_backup_query = f"""
                 SELECT table_name FROM information_schema.tables 
@@ -297,7 +322,6 @@ for _, row in df.iterrows():
                 oldest_backup = subprocess.check_output(oldest_backup_command, shell=True).decode().strip()
                 if oldest_backup:
                     print(f"🔎 Oldest retained backup: {oldest_backup}")
-
                     rev_backup_query = f"""
                         SELECT table_name FROM information_schema.tables 
                         WHERE table_schema='{db}' 
@@ -305,7 +329,6 @@ for _, row in df.iterrows():
                     """
                     rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
                     rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\\n")
-
                     for rev_backup in rev_backups:
                         if rev_backup:
                             normal_time = oldest_backup.replace(table + "_", "")
@@ -315,13 +338,14 @@ for _, row in df.iterrows():
                                 subprocess.call(delete_rev_backup, shell=True)
                                 print(f"🗑 Deleted old _rev_ backup: {rev_backup}")
                 else:
-                    print(f"⚠️ No normal backups found for {table}, skipping _rev_ backup cleanup.")
+                    print(f"⚠️ No normal backups found, skipping _rev_ cleanup.")
             except subprocess.CalledProcessError as e:
                 print(f"❌ Error fetching oldest backup: {e}")
 
     except Exception as e:
         print(f"⚠️ Error while processing row: {e}")
         continue
+
 EOPYTHON
 EOF
                     '''
