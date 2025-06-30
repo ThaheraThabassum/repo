@@ -106,10 +106,13 @@ pipeline {
                                         echo "Transferring directory..."
                                         scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\$(basename \"\$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_DIR/"
 
+                                        echo "Setting permissions for transferred directory..."
+
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
 
                                         rm -rf "\$TEMP_DIR"
 
+                                        echo "Cleaning up old backups for directory on DEST_HOST..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                             "cd \"\$DEST_DIR\" && ls -dt \${FILE_NAME}_*/ 2>/dev/null | grep -v '_rev_' | tail -n +4 | xargs -r rm -rf"
                                     else
