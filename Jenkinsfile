@@ -10,7 +10,7 @@ pipeline {
     }
 
     stages {
-        stage('Revert Files on Destination') {
+        stage('Revert Files/Folders on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''#!/bin/bash
@@ -31,15 +31,19 @@ pipeline {
                                 set -e
                                 cd \"$DEST_DIR\"
 
-                                if [ -e \"$FILE_NAME\" ]; then
-                                    echo \"🛡️ Creating _rev_ backup...\"
+                                # Create _rev_ backup
+                                if [ -f \"$FILE_NAME\" ]; then
+                                    echo \"🛡️ Backing up file as _rev_...\"
+                                    echo \"1234\" | sudo -S mv \"$FILE_NAME\" \"${FILE_NAME}_rev_${TIMESTAMP}\"
+                                elif [ -d \"$FILE_NAME\" ]; then
+                                    echo \"🛡️ Backing up directory as _rev_...\"
                                     echo \"1234\" | sudo -S mv \"$FILE_NAME\" \"${FILE_NAME}_rev_${TIMESTAMP}\"
                                 else
                                     echo \"⚠️ $FILE_NAME does not exist, skipping _rev_ backup.\"
                                 fi
 
                                 echo \"🔍 Looking for latest non-_rev_ backup...\"
-                                BACKUP=\\$(ls -1t ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+                                BACKUP=\\$(ls -1td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
                                 echo \"📦 Found backup: \\$BACKUP\"
 
