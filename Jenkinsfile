@@ -20,16 +20,15 @@ pipeline {
                         while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
                             [[ -z "$FILE_PATH" ]] && continue
                             
+                            TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
+                            DEST_PATH="${DEST_BASE_PATH}/$FILE_PATH"
+                            DEST_DIR=$(dirname "$DEST_PATH")
+                            FILE_NAME=$(basename "$DEST_PATH")
+
                             echo "======== 🔄 Reverting: $FILE_PATH ========"
 
                             ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST <<EOF
                                 set -e
-
-                                TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
-                                DEST_DIR="${DEST_BASE_PATH}/$(dirname "$FILE_PATH")"
-                                FILE_NAME=$(basename "$FILE_PATH")
-                                DEST_PATH="${DEST_BASE_PATH}/$FILE_PATH"
-
                                 cd "$DEST_DIR"
 
                                 if [ -e "$DEST_PATH" ]; then
@@ -40,11 +39,11 @@ pipeline {
                                 fi
 
                                 echo "🔍 Looking for latest non-_rev_ backup..."
-                                LATEST=$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
+                                LATEST=\$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
 
-                                if [ -n "$LATEST" ]; then
-                                    echo "🔁 Restoring backup: $LATEST to $DEST_PATH"
-                                    echo "1234" | sudo -S mv "$LATEST" "$DEST_PATH"
+                                if [ -n "\$LATEST" ]; then
+                                    echo "🔁 Restoring backup: \$LATEST to $DEST_PATH"
+                                    echo "1234" | sudo -S mv "\$LATEST" "$DEST_PATH"
                                 else
                                     echo "⚠️ No valid backup found for $FILE_NAME"
                                 fi
