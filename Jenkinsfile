@@ -187,6 +187,7 @@ for _, row in df.iterrows():
         should_skip_backup = True
         if option and option != "nan":
             should_skip_backup = False
+
         if cols_add and cols_add.lower() != "nan":
             for col in cols_add.split(","):
                 colname = col.strip().split()[0]
@@ -195,12 +196,35 @@ for _, row in df.iterrows():
                 if exists == '0':
                     should_skip_backup = False
                     break
+
         if dt_mod and dt_mod.lower() != "nan":
             for mod in dt_mod.split(","):
-                col = mod.strip().split()[0]
-                check = f"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{col}'"
-                exists = subprocess.check_output(f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{check}"', shell=True).decode().strip()
-                if exists == '1':
+                mod = mod.strip()
+                if not mod:
+                    continue
+                parts = mod.split()
+                if len(parts) < 2:
+                    print(f"⚠️ Invalid datatype change format: {mod}")
+                    continue
+                col = parts[0]
+                new_type = " ".join(parts[1:])
+                fetch_query = f"""
+                    SELECT column_type FROM information_schema.columns
+                    WHERE table_schema='{db}' AND table_name='{table}' AND column_name='{col}'
+                """
+                try:
+                    existing_type = subprocess.check_output(
+                        f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{fetch_query.strip()}"',
+                        shell=True
+                    ).decode().strip().lower()
+                    if existing_type != new_type.lower():
+                        should_skip_backup = False
+                        print(f"🛠 Datatype change required for {col}: {existing_type} → {new_type}")
+                        break
+                    else:
+                        print(f"ℹ️ Datatype same for {col}, skipping backup.")
+                except subprocess.CalledProcessError as e:
+                    print(f"⚠️ Could not verify datatype for {col}, assuming backup needed.")
                     should_skip_backup = False
                     break
 
@@ -298,11 +322,3 @@ for _, row in df.iterrows():
     except Exception as e:
         print(f"⚠️ Error while processing row: {e}")
         continue
-EOPYTHON
-EOF
-                    '''
-                }
-            }
-        }
-    }
-}
