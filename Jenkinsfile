@@ -105,18 +105,28 @@ with open(TRANSFERRED_SCRIPTS, "w") as f:
 print("✅ All scripts written.")
 EOPYTHON
 EOF
-                        #scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
-                        #scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
-                        #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '${SUDO_PASSWORD}' | sudo -S chmod 777 /home/thahera/*.sql"
+                        # Step 1: Fetch transferred_scripts.txt from REMOTE_HOST to local
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "cat ${TRANSFERRED_SCRIPTS}" > transferred_scripts.txt
-                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
-                        scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql .
-                        scp -o StrictHostKeyChecking=no *.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
 
+                        # Step 2: Send transferred_scripts.txt to DEST_HOST
+                        scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
+
+                        # Step 3: Loop over scripts and transfer only valid ones from REMOTE_HOST to DEST_HOST
+                        while read script; do
+                            echo "🔁 Transferring $script..."
+                            # Optional check: ensure file exists on REMOTE_HOST
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "[ -f /home/thahera/$script ]" && \
+                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ || \
+                            echo "⚠️ Skipped $script (not found on REMOTE_HOST)"
+                        done < transferred_scripts.txt
+
+                        # Step 4: (Optional) Set permissions on DEST_HOST
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '${SUDO_PASSWORD}' | sudo -S chmod 777 /home/thahera/*.sql"
                     """
                 }
             }
         }
+
 
         stage('Backup, Revert, Deploy in UAT') {
             steps {
