@@ -10,7 +10,7 @@ pipeline {
     }
 
     stages {
-        stage('Direct Revert on DEST Server') {
+        stage('Revert Files on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''#!/bin/bash
@@ -27,55 +27,45 @@ pipeline {
 
                             echo "======== 🔄 Reverting: $FILE_PATH ========"
 
-                            ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST <<EOF
+                            ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST bash -c "'
                                 set -e
-                                cd "$DEST_DIR"
+                                cd \"$DEST_DIR\"
 
-                                if [ -e "$FILE_NAME" ]; then
-                                    echo "🛡️ Creating _rev_ backup..."
-                                    echo "1234" | sudo -S mv "$FILE_NAME" "${FILE_NAME}_rev_${TIMESTAMP}"
+                                if [ -e \"$FILE_NAME\" ]; then
+                                    echo \"🛡️ Creating _rev_ backup...\"
+                                    echo \"1234\" | sudo -S mv \"$FILE_NAME\" \"${FILE_NAME}_rev_${TIMESTAMP}\"
                                 else
-                                    echo "⚠️ $FILE_NAME does not exist, skipping _rev_ backup."
+                                    echo \"⚠️ $FILE_NAME does not exist, skipping _rev_ backup.\"
                                 fi
 
-                                echo "🔍 Looking for latest non-_rev_ backup..."
-                                BACKUP=\$(ls -1t ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+                                echo \"🔍 Looking for latest non-_rev_ backup...\"
+                                BACKUP=\$(ls -1t ${FILE_NAME}_* 2>/dev/null | grep -v _rev_ | head -n1)
 
-                                if [ -n "\$BACKUP" ]; then
-                                    echo "🔁 Restoring \$BACKUP → $FILE_NAME"
-                                    echo "1234" | sudo -S mv "\$BACKUP" "$FILE_NAME"
+                                if [ -n \"\$BACKUP\" ]; then
+                                    echo \"🔁 Restoring \$BACKUP → $FILE_NAME\"
+                                    echo \"1234\" | sudo -S mv \"\$BACKUP\" \"$FILE_NAME\"
                                 else
-                                    echo "⚠️ No valid backup found for $FILE_NAME"
+                                    echo \"⚠️ No valid backup found for $FILE_NAME\"
                                 fi
 
-                                echo "🧹 Cleaning old _rev_ backups..."
+                                echo \"🧹 Cleaning old _rev_ backups...\"
                                 ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
-EOF
-
+                            '"
                         done < ${FILES_LIST_FILE}
                     '''
                 }
             }
         }
 
-        stage('Restart Docker on Destination') {
+        stage('Restart Docker (optional)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         echo "🔄 Restarting Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
-                            CONTAINERS=$(sudo docker ps -aq)
-                            if [ -n \"$CONTAINERS\" ]; then
-                                echo \"Stopping containers...\"
-                                #sudo docker stop $CONTAINERS
-                                echo \"Removing containers...\"
-                                #sudo docker rm $CONTAINERS
-                            else
-                                echo \"No running containers to stop/remove.\"
-                            fi
-                            echo \"Bringing up containers using docker-compose...\"
                             cd ${DEST_BASE_PATH}
-                            #sudo docker-compose up --build -d --force-recreate
+                            # Optional Docker restart logic
+                            # sudo docker-compose up --build -d --force-recreate
                         '"
                     '''
                 }
