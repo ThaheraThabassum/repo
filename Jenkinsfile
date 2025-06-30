@@ -48,9 +48,7 @@ pipeline {
                     sh """
                         ssh -tt -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << EOF
                             set -e
-                            #sudo apt install -y python3-pandas python3-openpyxl
                             echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
-
 
                             python3 << EOPYTHON
 import pandas as pd
@@ -69,13 +67,13 @@ for _, row in df.iterrows():
     option = str(row["option"]).strip().lower()
     where = str(row.get("where_condition", "")).strip()
 
-    check_db = f"mysql -u {MYSQL_USER} -p\\\\\\"{MYSQL_PASSWORD}\\\\\\" -N -e \\\\\\"SHOW DATABASES LIKE '{db}'\\\\\\""
+    check_db = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SHOW DATABASES LIKE '{db}'\\\""
     db_exists = subprocess.run(check_db, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if not db_exists:
         print(f"❌ Skipping - DB not found: {db}")
         continue
 
-    check_table = f"mysql -u {MYSQL_USER} -p\\\\\\"{MYSQL_PASSWORD}\\\\\\" -N -e \\\\\\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\\\\\\""
+    check_table = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\\\""
     table_exists = subprocess.run(check_table, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if table_exists != '1':
         print(f"❌ Skipping - Table not found: {db}.{table}")
@@ -102,15 +100,14 @@ for _, row in df.iterrows():
             print(f"❌ Error generating: {dump_file}")
 
 with open("${TRANSFERRED_SCRIPTS}", "w") as f:
-    f.write("\\n".join(script_list))
+    f.write("\n".join(script_list))
 print("✅ All scripts written.")
 EOPYTHON
 EOF
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/*.sql ${REMOTE_USER}@${DEST_HOST}:/home/thahera/
                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${TRANSFERRED_SCRIPTS} ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '${SUDO_PASSWORD}' | sudo -S chmod 777 /home/thahera/*.sql"
-                        #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'echo "${SUDO_PASSWORD}" | sudo -S chmod 777 /home/thahera/*.sql'
-                    '''
+                    """
                 }
             }
         }
@@ -276,5 +273,4 @@ EOF
             }
         }
     }
-
 }
