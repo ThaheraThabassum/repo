@@ -39,7 +39,7 @@ pipeline {
                                 fi
 
                                 echo "🔍 Looking for latest non-_rev_ backup..."
-                                LATEST=\$(ls -td "${FILE_NAME}"_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
+                                LATEST=\$(ls -td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1 || true)
 
                                 if [ -n "\$LATEST" ]; then
                                     echo "🔁 Restoring backup: \$LATEST to $DEST_PATH"
@@ -49,7 +49,7 @@ pipeline {
                                 fi
 
                                 echo "🧹 Cleaning old _rev_ backups (keeping latest one)..."
-                                ls -td "${FILE_NAME}_rev_"* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                                ls -td ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
 EOF
 
                         done < ${FILES_LIST_FILE}
