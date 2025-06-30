@@ -39,11 +39,13 @@ pipeline {
                                 fi
 
                                 echo \"🔍 Looking for latest non-_rev_ backup...\"
-                                BACKUP=\$(ls -1t ${FILE_NAME}_* 2>/dev/null | grep -v _rev_ | head -n1)
+                                BACKUP=\\$(ls -1t ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
-                                if [ -n \"\$BACKUP\" ]; then
-                                    echo \"🔁 Restoring \$BACKUP → $FILE_NAME\"
-                                    echo \"1234\" | sudo -S mv \"\$BACKUP\" \"$FILE_NAME\"
+                                echo \"📦 Found backup: \\$BACKUP\"
+
+                                if [ -n \"\\$BACKUP\" ]; then
+                                    echo \"🔁 Restoring \\$BACKUP → $FILE_NAME\"
+                                    echo \"1234\" | sudo -S mv \"\\$BACKUP\" \"$FILE_NAME\"
                                 else
                                     echo \"⚠️ No valid backup found for $FILE_NAME\"
                                 fi
@@ -64,7 +66,7 @@ pipeline {
                         echo "🔄 Restarting Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
                             cd ${DEST_BASE_PATH}
-                            # Optional Docker restart logic
+                            # Uncomment below if needed
                             # sudo docker-compose up --build -d --force-recreate
                         '"
                     '''
