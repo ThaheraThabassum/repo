@@ -47,13 +47,14 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'bash -s' << 'EOF'
-set -e
-echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
+                            set -e
+                            echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
 
                             python3 << EOPYTHON
 import pandas as pd
 import datetime
 import subprocess
+import os
 
 MYSQL_USER = "${MYSQL_USER}"
 MYSQL_PASSWORD = "${MYSQL_PASSWORD}"
@@ -74,7 +75,7 @@ for _, row in df.iterrows():
         print(f"❌ Skipping - DB not found: {db}")
         continue
 
-    #check_table = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\""
+    check_table = f"mysql -u {MYSQL_USER} -p\"{MYSQL_PASSWORD}\" -N -e \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\""
     check_table = f"mysql -u {MYSQL_USER} -p\\\"{MYSQL_PASSWORD}\\\" -N -e \\\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{db}' AND table_name='{table}'\\\""
     table_exists = subprocess.run(check_table, shell=True, stdout=subprocess.PIPE).stdout.decode().strip()
     if table_exists != '1':
@@ -103,7 +104,7 @@ for _, row in df.iterrows():
 
 TRANSFERRED_SCRIPTS = "/home/thahera/transferred_scripts.txt"
 with open(TRANSFERRED_SCRIPTS, "w") as f:
-    f.write("\\n".join(script_list))
+    f.write("\n".join(script_list))
 print("✅ All scripts written.")
 EOPYTHON
 EOF
@@ -122,12 +123,16 @@ EOF
                         echo "📤 Sending transferred_scripts.txt to DEST_HOST..."
                         scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
 
+                        echo "📃 Contents of transferred_scripts.txt:"
+                        cat transferred_scripts.txt
+
                         echo "📦 Transferring scripts listed in transferred_scripts.txt..."
                         while read script; do
-                            echo "🔁 Transferring \$script..."
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "[ -f /home/thahera/\$script ]" && \\
-                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/\$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ || \\
-                            echo "⚠️ Skipped \$script (not found on REMOTE_HOST)"
+                            echo "🔁 Transferring script: '$script'"
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "ls -l /home/thahera/'$script'" || echo "⚠️ File not found: $script"
+                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ && \
+                            echo "✅ Transferred: $script" || \
+                            echo "❌ Failed to transfer: $script"
                         done < transferred_scripts.txt
 
                         echo "🔐 Setting file permissions on DEST_HOST..."
@@ -137,10 +142,9 @@ EOF
             }
         }
 
-
-
         stage('Backup, Revert, Deploy in UAT') {
             steps {
+                echo "🔧 Continuing with DB operations in UAT..."
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
