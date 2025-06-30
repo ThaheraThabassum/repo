@@ -14,16 +14,14 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     script {
-                        def fileList = readFile(env.FILES_LIST_FILE).split('\n')
-
+                        def fileList = readFile(env.FILES_LIST_FILE).split("\n")
                         for (filePath in fileList) {
-                            filePath = filePath.trim()
-                            if (!filePath) continue
+                            if (!filePath?.trim()) continue
 
                             def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
-                            def fullDestPath = "${env.DEST_BASE_PATH}/${filePath}"
-                            def destDir = fullDestPath.substring(0, fullDestPath.lastIndexOf('/'))
-                            def fileName = fullDestPath.substring(fullDestPath.lastIndexOf('/') + 1)
+                            def destPath = "${env.DEST_BASE_PATH}/${filePath.trim()}"
+                            def destDir = "${destPath.substring(0, destPath.lastIndexOf("/"))}"
+                            def fileName = filePath.trim().tokenize("/").last()
 
                             sh """
                                 echo "======== 🔄 Reverting: ${filePath} ========"
@@ -42,13 +40,13 @@ pipeline {
                                     fi
 
                                     echo "🔍 Looking for latest non-_rev_ backup..."
-                                    BACKUP=\\\$(ls -1td ${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+                                    BACKUP=\\$\(ls -1td ${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1\\)
 
-                                    echo "📦 Found backup: \\\$BACKUP"
+                                    echo "📦 Found backup: \\$BACKUP"
 
-                                    if [ -n "\\\$BACKUP" ]; then
-                                        echo "🔁 Restoring \\\$BACKUP → ${fileName}"
-                                        echo "1234" | sudo -S mv "\\\$BACKUP" "${fileName}"
+                                    if [ -n "\\$BACKUP" ]; then
+                                        echo "🔁 Restoring \\$BACKUP → ${fileName}"
+                                        echo "1234" | sudo -S mv "\\$BACKUP" "${fileName}"
                                     else
                                         echo "⚠️ No valid backup found for ${fileName}"
                                     fi
