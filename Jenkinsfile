@@ -322,3 +322,11 @@ for _, row in df.iterrows():
     except Exception as e:
         print(f"⚠️ Error while processing row: {e}")
         continue
+EOPYTHON
+EOF
+                    '''
+                }
+            }
+        }
+    }
+}
