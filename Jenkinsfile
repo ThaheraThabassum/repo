@@ -178,7 +178,7 @@ for _, row in df.iterrows():
         dt_mod = str(row.get("change_the_datatype_for_columns", "")).strip()
         revert = str(row.get("revert", "")).strip().lower()
 
-        print(f"\n📌 Processing DB: {db}, Table: {table}")
+        print(f"\\n📌 Processing DB: {db}, Table: {table}")
 
         if revert == "yes":
             print("🔁 Reverting changes as per config...")
