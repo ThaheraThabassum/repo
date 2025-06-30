@@ -102,7 +102,7 @@ for _, row in df.iterrows():
 
 TRANSFERRED_SCRIPTS = "/home/thahera/transferred_scripts.txt"
 with open(TRANSFERRED_SCRIPTS, "w") as f:
-    f.write("\\n".join(script_list))
+    f.write("\\n".join(script_list) + "\\n")
 print("✅ All scripts written.")
 EOPYTHON
 EOF
@@ -125,10 +125,10 @@ EOF
                         cat transferred_scripts.txt
 
                         echo "📦 Transferring scripts listed in transferred_scripts.txt..."
-                        while read script; do
+                        while IFS= read -r script || [ -n "$script" ]; do
                             echo "🔁 Transferring script: '$script'"
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "ls -l /home/thahera/'$script'" || echo "⚠️ File not found: $script"
-                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ && \
+                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/"$script" ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ && \
                             echo "✅ Transferred: $script" || \
                             echo "❌ Failed to transfer: $script"
                         done < transferred_scripts.txt
@@ -148,6 +148,7 @@ EOF
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << EOF
+                            echo "✔️ Deployment script started on DEST_HOST"
                             set -e
                             python3 << EOPYTHON
 import pandas as pd
