@@ -45,7 +45,7 @@ pipeline {
         stage('Generate SQL Scripts (No Backup)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
+                    sh '''
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'bash -s' << 'EOF'
                             set -e
                             echo "${SUDO_PASSWORD}" | sudo -S apt install -y python3-pandas python3-openpyxl
@@ -108,10 +108,11 @@ with open(TRANSFERRED_SCRIPTS, "w") as f:
 print("✅ All scripts written.")
 EOPYTHON
 EOF
-                    """
+                    '''
                 }
             }
         }
+
 
         stage('Transfer Scripts to DEST_HOST') {
             steps {
