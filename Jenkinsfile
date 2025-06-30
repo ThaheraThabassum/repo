@@ -275,7 +275,7 @@ for _, row in df.iterrows():
                         AND table_name LIKE '{table}_rev_%';
                     """
                     rev_backup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{rev_backup_query}"'
-                    rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\n")
+                    rev_backups = subprocess.check_output(rev_backup_command, shell=True).decode().strip().split("\\n")
 
                     for rev_backup in rev_backups:
                         if rev_backup:
