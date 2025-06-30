@@ -104,7 +104,7 @@ for _, row in df.iterrows():
 
 TRANSFERRED_SCRIPTS = "/home/thahera/transferred_scripts.txt"
 with open(TRANSFERRED_SCRIPTS, "w") as f:
-    f.write("\n".join(script_list))
+    f.write("\\n".join(script_list))
 print("✅ All scripts written.")
 EOPYTHON
 EOF
