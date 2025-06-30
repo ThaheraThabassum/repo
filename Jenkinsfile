@@ -19,7 +19,7 @@ pipeline {
 
                         while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
                             [[ -z "$FILE_PATH" ]] && continue
-                            
+
                             TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
                             DEST_PATH="${DEST_BASE_PATH}/$FILE_PATH"
                             DEST_DIR=$(dirname "$DEST_PATH")
@@ -31,25 +31,25 @@ pipeline {
                                 set -e
                                 cd "$DEST_DIR"
 
-                                if [ -e "$DEST_PATH" ]; then
-                                    echo "🛡️ Backing up current file/folder as _rev_"
-                                    echo "1234" | sudo -S mv "$DEST_PATH" "${DEST_PATH}_rev_${TIMESTAMP}"
+                                if [ -e "$FILE_NAME" ]; then
+                                    echo "🛡️ Creating _rev_ backup..."
+                                    echo "1234" | sudo -S mv "$FILE_NAME" "${FILE_NAME}_rev_${TIMESTAMP}"
                                 else
-                                    echo "⚠️ $DEST_PATH does not exist, skipping _rev_ backup."
+                                    echo "⚠️ $FILE_NAME does not exist, skipping _rev_ backup."
                                 fi
 
                                 echo "🔍 Looking for latest non-_rev_ backup..."
-                                LATEST=$(ls -tp | grep "^${FILE_NAME}_" | grep -v '_rev_' | head -n1 || true)
+                                BACKUP=\$(ls -1t ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
-                                if [ -n "$LATEST" ]; then
-                                    echo "🔁 Restoring backup: \$LATEST to $DEST_PATH"
-                                    echo "1234" | sudo -S mv "$LATEST" "$DEST_PATH"
+                                if [ -n "\$BACKUP" ]; then
+                                    echo "🔁 Restoring \$BACKUP → $FILE_NAME"
+                                    echo "1234" | sudo -S mv "\$BACKUP" "$FILE_NAME"
                                 else
                                     echo "⚠️ No valid backup found for $FILE_NAME"
                                 fi
 
-                                echo "🧹 Cleaning old _rev_ backups (keeping latest one)..."
-                                ls -td "${FILE_NAME}_rev_"* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                                echo "🧹 Cleaning old _rev_ backups..."
+                                ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
 EOF
 
                         done < ${FILES_LIST_FILE}
