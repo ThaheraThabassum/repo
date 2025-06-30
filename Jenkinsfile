@@ -101,26 +101,26 @@ for _, row in df.iterrows():
             
 TRANSFERRED_SCRIPTS = "/home/thahera/transferred_scripts.txt"
 with open(TRANSFERRED_SCRIPTS, "w") as f:
-    f.write("\\n".join(script_list))
+    f.write("\n".join(script_list))
 print("✅ All scripts written.")
 EOPYTHON
 EOF
-                        # Step 1: Fetch transferred_scripts.txt from REMOTE_HOST to local
+
+                        echo "📥 Fetching transferred_scripts.txt from REMOTE_HOST to local..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "cat ${TRANSFERRED_SCRIPTS}" > transferred_scripts.txt
 
-                        # Step 2: Send transferred_scripts.txt to DEST_HOST
+                        echo "📤 Sending transferred_scripts.txt to DEST_HOST..."
                         scp -o StrictHostKeyChecking=no transferred_scripts.txt ${REMOTE_USER}@${DEST_HOST}:${TRANSFERRED_SCRIPTS}
 
-                        # Step 3: Loop over scripts and transfer only valid ones from REMOTE_HOST to DEST_HOST
+                        echo "📦 Transferring scripts listed in transferred_scripts.txt..."
                         while read script; do
-                            echo "🔁 Transferring $script..."
-                            # Optional check: ensure file exists on REMOTE_HOST
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "[ -f /home/thahera/$script ]" && \
-                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ || \
-                            echo "⚠️ Skipped $script (not found on REMOTE_HOST)"
+                            echo "🔁 Transferring \$script..."
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "[ -f /home/thahera/\$script ]" && \
+                            scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:/home/thahera/\$script ${REMOTE_USER}@${DEST_HOST}:/home/thahera/ || \
+                            echo "⚠️ Skipped \$script (not found on REMOTE_HOST)"
                         done < transferred_scripts.txt
 
-                        # Step 4: (Optional) Set permissions on DEST_HOST
+                        echo "🔐 Setting file permissions on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '${SUDO_PASSWORD}' | sudo -S chmod 777 /home/thahera/*.sql"
                     """
                 }
