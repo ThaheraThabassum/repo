@@ -99,8 +99,8 @@ for _, row in df.iterrows():
         except subprocess.CalledProcessError:
             print(f"❌ Error generating: {dump_file}")
             
-TRANSFERRED_SCRIPTS = "${TRANSFERRED_SCRIPTS}"
-with open("${TRANSFERRED_SCRIPTS}", "w") as f:
+TRANSFERRED_SCRIPTS = "/home/thahera/transferred_scripts.txt"
+with open(TRANSFERRED_SCRIPTS, "w") as f:
     f.write("\n".join(script_list))
 print("✅ All scripts written.")
 EOPYTHON
