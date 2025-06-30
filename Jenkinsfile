@@ -112,7 +112,7 @@ EOF
         stage('Transfer Scripts to DEST_HOST') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh """
+                    sh '''
                         echo "📥 Fetching transferred_scripts.txt from REMOTE_HOST to local..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "cat ${TRANSFERRED_SCRIPTS}" > transferred_scripts.txt
 
@@ -129,7 +129,7 @@ EOF
 
                         echo "🔐 Setting file permissions on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '${SUDO_PASSWORD}' | sudo -S chmod 777 /home/thahera/*.sql"
-                    """
+                    '''
                 }
             }
         }
