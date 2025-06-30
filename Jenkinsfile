@@ -13,52 +13,51 @@ pipeline {
         stage('Revert Files/Folders on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''#!/bin/bash
+                    sh """#!/bin/bash
                         set -e
                         echo "📄 Reading files from ${FILES_LIST_FILE}..."
 
-                        while IFS= read -r FILE_PATH || [ -n "$FILE_PATH" ]; do
-                            [[ -z "$FILE_PATH" ]] && continue
+                        while IFS= read -r FILE_PATH || [ -n "\$FILE_PATH" ]; do
+                            [[ -z "\$FILE_PATH" ]] && continue
 
-                            TIMESTAMP=$(date +%d_%m_%y_%H_%M_%S)
-                            DEST_PATH="${DEST_BASE_PATH}/$FILE_PATH"
-                            DEST_DIR=$(dirname "$DEST_PATH")
-                            FILE_NAME=$(basename "$DEST_PATH")
+                            TIMESTAMP=\$(date +%d_%m_%y_%H_%M_%S)
+                            DEST_PATH="${DEST_BASE_PATH}/\$FILE_PATH"
+                            DEST_DIR=\$(dirname "\$DEST_PATH")
+                            FILE_NAME=\$(basename "\$DEST_PATH")
 
-                            echo "======== 🔄 Reverting: $FILE_PATH ========"
+                            echo "======== 🔄 Reverting: \$FILE_PATH ========"
 
-                            ssh -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST bash -c "'
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
                                 set -e
-                                cd \"$DEST_DIR\"
+                                cd \"\$DEST_DIR\"
 
-                                # Create _rev_ backup
-                                if [ -f \"$FILE_NAME\" ]; then
+                                if [ -f \"\$FILE_NAME\" ]; then
                                     echo \"🛡️ Backing up file as _rev_...\"
-                                    echo \"1234\" | sudo -S mv \"$FILE_NAME\" \"${FILE_NAME}_rev_${TIMESTAMP}\"
-                                elif [ -d \"$FILE_NAME\" ]; then
+                                    echo \"1234\" | sudo -S mv \"\$FILE_NAME\" \"\${FILE_NAME}_rev_\${TIMESTAMP}\"
+                                elif [ -d \"\$FILE_NAME\" ]; then
                                     echo \"🛡️ Backing up directory as _rev_...\"
-                                    echo \"1234\" | sudo -S mv \"$FILE_NAME\" \"${FILE_NAME}_rev_${TIMESTAMP}\"
+                                    echo \"1234\" | sudo -S mv \"\$FILE_NAME\" \"\${FILE_NAME}_rev_\${TIMESTAMP}\"
                                 else
-                                    echo \"⚠️ $FILE_NAME does not exist, skipping _rev_ backup.\"
+                                    echo \"⚠️ \$FILE_NAME does not exist, skipping _rev_ backup.\"
                                 fi
 
                                 echo \"🔍 Looking for latest non-_rev_ backup...\"
-                                BACKUP=\\$(ls -1td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+                                BACKUP=\\\$(ls -1td \${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
-                                echo \"📦 Found backup: \\$BACKUP\"
+                                echo \"📦 Found backup: \\\$BACKUP\"
 
-                                if [ -n \"\\$BACKUP\" ]; then
-                                    echo \"🔁 Restoring \\$BACKUP → $FILE_NAME\"
-                                    echo \"1234\" | sudo -S mv \"\\$BACKUP\" \"$FILE_NAME\"
+                                if [ -n \"\\\$BACKUP\" ]; then
+                                    echo \"🔁 Restoring \\\$BACKUP → \$FILE_NAME\"
+                                    echo \"1234\" | sudo -S mv \"\\\$BACKUP\" \"\$FILE_NAME\"
                                 else
-                                    echo \"⚠️ No valid backup found for $FILE_NAME\"
+                                    echo \"⚠️ No valid backup found for \$FILE_NAME\"
                                 fi
 
                                 echo \"🧹 Cleaning old _rev_ backups...\"
-                                ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                                ls -1t \${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
                             '"
                         done < ${FILES_LIST_FILE}
-                    '''
+                    """
                 }
             }
         }
@@ -66,14 +65,14 @@ pipeline {
         stage('Restart Docker (optional)') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
-                    sh '''
+                    sh """
                         echo "🔄 Restarting Docker containers on DEST_HOST..."
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "'
                             cd ${DEST_BASE_PATH}
-                            # Uncomment below if needed
+                            # Uncomment the line below if needed
                             # sudo docker-compose up --build -d --force-recreate
                         '"
-                    '''
+                    """
                 }
             }
         }
