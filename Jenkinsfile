@@ -147,7 +147,7 @@ EOF
                 echo "🔧 Continuing with DB operations in UAT..."
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << EOF
                             set -e
                             python3 << EOPYTHON
 import pandas as pd
