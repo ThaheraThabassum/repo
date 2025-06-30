@@ -247,7 +247,7 @@ for _, row in df.iterrows():
             """
             cleanup_command = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -N -e "{cleanup_query}"'
             try:
-                old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\n")
+                old_backups = subprocess.check_output(cleanup_command, shell=True).decode().strip().split("\\n")
                 for backup in old_backups:
                     if backup:
                         delete_backup = f'mysql -u {MYSQL_USER} -p"{MYSQL_PASSWORD}" -e "DROP TABLE {db}.{backup};"'
