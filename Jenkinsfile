@@ -119,11 +119,17 @@ pipeline {
                                     echo "↩️ Restoring pdf folder from UI revert..."
                                     [ -d ${UI_FOLDER_NAME}_revert_${timestamp}/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_${timestamp}/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
 
+                                    echo "📁 Backing up existing usermanagement and masterdata before restoring from UI revert..."
+                                    cd ${UI_FOLDER_NAME}
+                                    [ -d usermanagement ] && sudo mv usermanagement usermanagement_old_${timestamp} || true
+                                    [ -d masterdata ] && sudo mv masterdata masterdata_old_${timestamp} || true
+
                                     echo "📁 Copying usermanagement and masterdata from UI revert..."
-                                    [ -d ${UI_FOLDER_NAME}_revert_${timestamp}/usermanagement ] && sudo cp -r ${UI_FOLDER_NAME}_revert_${timestamp}/usermanagement ${UI_FOLDER_NAME}/ || true
-                                    [ -d ${UI_FOLDER_NAME}_revert_${timestamp}/masterdata ] && sudo cp -r ${UI_FOLDER_NAME}_revert_${timestamp}/masterdata ${UI_FOLDER_NAME}/ || true
+                                    [ -d ../${UI_FOLDER_NAME}_revert_${timestamp}/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_${timestamp}/usermanagement . || true
+                                    [ -d ../${UI_FOLDER_NAME}_revert_${timestamp}/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_${timestamp}/masterdata . || true
 
                                     sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}
+                                    cd ..
                                 fi
 
                                 echo "🧹 Cleaning old revert backups..."
