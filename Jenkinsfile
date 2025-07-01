@@ -25,14 +25,15 @@ pipeline {
                             }
 
                             def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
-                            def destPath = "${DEST_BASE_PATH}/${filePath}"
+                            def destPath = "${env.DEST_BASE_PATH}/${filePath}"
                             def destDir = destPath.substring(0, destPath.lastIndexOf("/"))
                             def fileName = destPath.substring(destPath.lastIndexOf("/") + 1)
 
                             echo "======== 🔄 Reverting: ${filePath} ========"
 
                             sh """
-                                ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'bash -s' <<'EOF'
+                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} 'bash -c '
+                                '"'"'
                                 set -e
                                 cd "${destDir}"
 
@@ -43,23 +44,23 @@ pipeline {
                                     echo "🛡️ Backing up directory as _rev_..."
                                     echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
                                 else
-                                    echo "⚠️ \${fileName} does not exist, skipping _rev_ backup."
+                                    echo "⚠️ ${fileName} does not exist, skipping _rev_ backup."
                                 fi
 
                                 echo "🔍 Looking for latest non-_rev_ backup..."
-                                BACKUP=\$(ls -1td \${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+                                BACKUP=\$(ls -1td ${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
                                 if [ -n "\$BACKUP" ]; then
                                     echo "📦 Found backup: \$BACKUP"
-                                    echo "🔁 Restoring \$BACKUP → \${fileName}"
-                                    echo "1234" | sudo -S mv "\$BACKUP" "\${fileName}"
+                                    echo "🔁 Restoring \$BACKUP → ${fileName}"
+                                    echo "1234" | sudo -S mv "\$BACKUP" "${fileName}"
                                 else
-                                    echo "⚠️ No valid backup found for \${fileName}"
+                                    echo "⚠️ No valid backup found for ${fileName}"
                                 fi
 
                                 echo "🧹 Cleaning old _rev_ backups..."
-                                ls -1t \${fileName}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
-                                EOF
+                                ls -1t ${fileName}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                                '"'"'
                             """
                         }
                     }
