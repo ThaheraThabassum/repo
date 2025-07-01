@@ -46,6 +46,93 @@ pipeline {
             }
         }
 
+        stage('Check Revert Flags') {
+            steps {
+                script {
+                    def revertFile = 'ui_revert_files.txt'
+                    def revertLines = readFile(revertFile).readLines().findAll { it?.trim() }
+
+                    env.REVERT_UI = "false"
+                    env.REVERT_USERMGMT = "false"
+                    env.REVERT_MASTERDATA = "false"
+
+                    for (line in revertLines) {
+                        def parts = line.split('=', 2)
+                        if (parts.size() == 2) {
+                            def key = parts[0].trim().toUpperCase()
+                            def value = parts[1].trim().toLowerCase()
+
+                            if (key == 'UI') env.REVERT_UI = value
+                            else if (key == 'USERMANAGEMENT') env.REVERT_USERMGMT = value
+                            else if (key == 'MASTERDATA') env.REVERT_MASTERDATA = value
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Revert Selected Modules') {
+            when {
+                anyOf {
+                    expression { return env.REVERT_UI == 'true' }
+                    expression { return env.REVERT_USERMGMT == 'true' }
+                    expression { return env.REVERT_MASTERDATA == 'true' }
+                }
+            }
+            steps {
+                sshagent(credentials: [env.SSH_KEY]) {
+                    script {
+                        def timestamp = readFile('timestamp.txt').trim()
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                                cd ${UI_DEPLOY_PATH}
+
+                                if [ "${env.REVERT_UI}" == "true" ]; then
+                                    echo "🔄 Reverting UI..."
+                                    [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_current || true
+                                    sudo rm -rf ${UI_FOLDER_NAME}_revert_* || true
+                                    [ -d ${UI_FOLDER_NAME}_current ] && sudo mv ${UI_FOLDER_NAME}_current ${UI_FOLDER_NAME}_revert_${timestamp} || true
+                                    [ -d ${UI_FOLDER_NAME}_revert_${timestamp} ] && sudo mv ${UI_FOLDER_NAME}_revert_${timestamp} ${UI_FOLDER_NAME}
+
+                                    if [ -d ${UI_FOLDER_NAME}_revert_${timestamp}/assets/pdf ]; then
+                                        echo "↩️ Restoring pdf folder from revert backup..."
+                                        sudo mv ${UI_FOLDER_NAME}_revert_${timestamp}/assets/pdf ${UI_FOLDER_NAME}/assets/
+                                    fi
+                                fi
+
+                                if [ "${env.REVERT_USERMGMT}" == "true" ]; then
+                                    echo "🔄 Reverting Usermanagement..."
+                                    cd ${UI_FOLDER_NAME}
+                                    [ -d usermanagement ] && sudo mv usermanagement usermanagement_current || true
+                                    sudo rm -rf usermanagement_revert_* || true
+                                    [ -d usermanagement_current ] && sudo mv usermanagement_current usermanagement_revert_${timestamp} || true
+                                    [ -d usermanagement_revert_${timestamp} ] && sudo mv usermanagement_revert_${timestamp} usermanagement
+                                    cd ..
+                                fi
+
+                                if [ "${env.REVERT_MASTERDATA}" == "true" ]; then
+                                    echo "🔄 Reverting Masterdata..."
+                                    cd ${UI_FOLDER_NAME}
+                                    [ -d masterdata ] && sudo mv masterdata masterdata_current || true
+                                    sudo rm -rf masterdata_revert_* || true
+                                    [ -d masterdata_current ] && sudo mv masterdata_current masterdata_revert_${timestamp} || true
+                                    [ -d masterdata_revert_${timestamp} ] && sudo mv masterdata_revert_${timestamp} masterdata
+                                    cd ..
+                                fi
+
+                                echo "🧹 Cleaning old revert backups..."
+                                find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" -exec sudo rm -rf {} +
+                                find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" -exec sudo rm -rf {} +
+                                find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" -exec sudo rm -rf {} +
+
+                                sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}
+                            '
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Transfer Zip Files') {
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
