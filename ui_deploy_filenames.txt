@@ -1,3 +1,1 @@
-UI=kmb_UI_UAT_26_03.zip
-MASTERDATA=masterdata_kmb_UAT_31_01_2025.zip
-USERMANAGEMENT=usermanagement_kmb_UAT_12_03_2025.zip
+
