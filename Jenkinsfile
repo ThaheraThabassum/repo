@@ -19,7 +19,6 @@ pipeline {
                             def filePath = rawLine.trim()
                             if (!filePath) continue
 
-                            // Remove trailing slash if it's a folder
                             if (filePath.endsWith("/")) {
                                 filePath = filePath[0..-2]
                             }
@@ -32,35 +31,34 @@ pipeline {
                             echo "======== 🔄 Reverting: ${filePath} ========"
 
                             sh """
-                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} 'bash -c '
-                                '"'"'
-                                set -e
-                                cd "${destDir}"
+                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} '
+                                    set -e
+                                    cd "${destDir}"
 
-                                if [ -f "${fileName}" ]; then
-                                    echo "🛡️ Backing up file as _rev_..."
-                                    echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
-                                elif [ -d "${fileName}" ]; then
-                                    echo "🛡️ Backing up directory as _rev_..."
-                                    echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
-                                else
-                                    echo "⚠️ ${fileName} does not exist, skipping _rev_ backup."
-                                fi
+                                    if [ -f "${fileName}" ]; then
+                                        echo "🛡️ Backing up file as _rev_..."
+                                        echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
+                                    elif [ -d "${fileName}" ]; then
+                                        echo "🛡️ Backing up directory as _rev_..."
+                                        echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
+                                    else
+                                        echo "⚠️ ${fileName} does not exist, skipping _rev_ backup."
+                                    fi
 
-                                echo "🔍 Looking for latest non-_rev_ backup..."
-                                BACKUP=\$(ls -1td ${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+                                    echo "🔍 Looking for latest non-_rev_ backup..."
+                                    BACKUP=\\$(ls -1td ${fileName}_* 2>/dev/null | grep -v "_rev_" | head -n1)
 
-                                if [ -n "\$BACKUP" ]; then
-                                    echo "📦 Found backup: \$BACKUP"
-                                    echo "🔁 Restoring \$BACKUP → ${fileName}"
-                                    echo "1234" | sudo -S mv "\$BACKUP" "${fileName}"
-                                else
-                                    echo "⚠️ No valid backup found for ${fileName}"
-                                fi
+                                    if [ -n "\\$BACKUP" ]; then
+                                        echo "📦 Found backup: \\$BACKUP"
+                                        echo "🔁 Restoring \\$BACKUP → ${fileName}"
+                                        echo "1234" | sudo -S mv "\\$BACKUP" "${fileName}"
+                                    else
+                                        echo "⚠️ No valid backup found for ${fileName}"
+                                    fi
 
-                                echo "🧹 Cleaning old _rev_ backups..."
-                                ls -1t ${fileName}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
-                                '"'"'
+                                    echo "🧹 Cleaning old _rev_ backups..."
+                                    ls -1t ${fileName}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                                '
                             """
                         }
                     }
@@ -73,8 +71,11 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     sh '''
                         echo "🔄 Restarting Docker containers on DEST_HOST..."
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} bash -c "cd ${DEST_BASE_PATH} && echo 'Recreate if needed'"
-                        # sudo docker-compose up --build -d --force-recreate
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
+                            cd ${DEST_BASE_PATH}
+                            echo "Ready to restart docker-compose if needed"
+                            # sudo docker-compose up --build -d --force-recreate
+                        '
                     '''
                 }
             }
