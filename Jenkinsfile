@@ -20,7 +20,7 @@ pipeline {
                             def FILE_PATH = rawLine.trim()
                             if (!FILE_PATH) continue
 
-                            // Remove trailing slash for consistency
+                            // Remove trailing slash
                             if (FILE_PATH.endsWith("/")) {
                                 FILE_PATH = FILE_PATH[0..-2]
                             }
@@ -33,9 +33,12 @@ pipeline {
                             echo "======== 🔄 Reverting: ${FILE_PATH} ========"
 
                             sh """
-                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -s <<EOF
+                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -s <<'EOF'
                                 set -e
                                 cd "${DEST_DIR}"
+
+                                echo "[🔍 Debug] Current dir: \$(pwd)"
+                                echo "[🔍 Debug] Looking for: ${FILE_NAME}_*"
 
                                 if [ -f "${FILE_NAME}" ]; then
                                     echo "🛡️ Backing up file as _rev_..."
@@ -49,6 +52,8 @@ pipeline {
 
                                 echo "🔍 Looking for latest non-_rev_ backup..."
                                 BACKUP=\$(ls -1td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+
+                                echo "[🔍 Debug] Found BACKUP = \$BACKUP"
 
                                 if [ -n "\$BACKUP" ]; then
                                     echo "📦 Found backup: \$BACKUP"
@@ -75,7 +80,7 @@ EOF
                         echo "🔄 Restarting Docker containers (if needed)..."
                         ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
                             cd ${env.DEST_BASE_PATH}
-                            # Uncomment below line to restart services
+                            # Uncomment below if needed:
                             # sudo docker-compose up --build -d --force-recreate
                         '
                     """
