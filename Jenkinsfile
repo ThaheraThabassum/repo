@@ -20,7 +20,7 @@ pipeline {
                             def FILE_PATH = rawLine.trim()
                             if (!FILE_PATH) continue
 
-                            // Remove trailing slash (for folder paths)
+                            // Remove trailing slash
                             if (FILE_PATH.endsWith("/")) {
                                 FILE_PATH = FILE_PATH[0..-2]
                             }
@@ -37,6 +37,9 @@ pipeline {
                                 set -e
                                 cd "${DEST_DIR}"
 
+                                echo "[🔍 Debug] Current dir: \$(pwd)"
+                                echo "[🔍 Debug] Looking for: ${FILE_NAME}_*"
+
                                 if [ -f "${FILE_NAME}" ]; then
                                     echo "🛡️ Backing up file as _rev_..."
                                     echo "${SUDO_PASS}" | sudo -S mv "${FILE_NAME}" "${FILE_NAME}_rev_${TIMESTAMP}"
@@ -50,6 +53,8 @@ pipeline {
                                 echo "🔍 Looking for latest non-_rev_ backup..."
                                 BACKUP=\$(ls -1td ${FILE_NAME}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
+                                echo "[🔍 Debug] Found BACKUP = \$BACKUP"
+
                                 if [ -n "\$BACKUP" ]; then
                                     echo "📦 Found backup: \$BACKUP"
                                     echo "🔁 Restoring \$BACKUP → ${FILE_NAME}"
@@ -59,9 +64,11 @@ pipeline {
                                 fi
 
                                 echo "🧹 Cleaning old _rev_ backups..."
+                                #ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
                                 find . -maxdepth 1 -name "${FILE_NAME}_rev_*" -printf "%T@ %p\n" 2>/dev/null | \
                                     sort -nr | tail -n +2 | cut -d' ' -f2- | xargs -r sudo rm -rf
 EOF
+
                             """
                         }
                     }
