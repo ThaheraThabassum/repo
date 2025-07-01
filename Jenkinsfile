@@ -98,7 +98,7 @@ pipeline {
                                 cd ${UI_DEPLOY_PATH}
                                 BACKUP=${UI_FOLDER_NAME}_${timestamp}
                                 if [ -d "\$BACKUP" ]; then
-                                    [ -d "\$BACKUP/assets/pdf" ] && sudo cp -r "\$BACKUP/assets/pdf" "${UI_FOLDER_NAME}/assets/" || true
+                                    [ -d "\$BACKUP/assets/pdf" ] && sudo mv "\$BACKUP/assets/pdf" "${UI_FOLDER_NAME}/assets/" || true
                                     [ -d "\$BACKUP/usermanagement" ] && sudo cp -r "\$BACKUP/usermanagement" "${UI_FOLDER_NAME}/" || true
                                     [ -d "\$BACKUP/masterdata" ] && sudo cp -r "\$BACKUP/masterdata" "${UI_FOLDER_NAME}/" || true
                                 fi
