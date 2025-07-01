@@ -19,6 +19,11 @@ pipeline {
                             def FILE_PATH = rawLine.trim()
                             if (!FILE_PATH) continue
 
+                            // Remove trailing slash if present (folder case)
+                            if (FILE_PATH.endsWith("/")) {
+                                FILE_PATH = FILE_PATH[0..-2]
+                            }
+
                             def DEST_PATH = "${env.DEST_BASE_PATH}/${FILE_PATH}"
                             def DEST_DIR = DEST_PATH.substring(0, DEST_PATH.lastIndexOf("/"))
                             def FILE_NAME = DEST_PATH.substring(DEST_PATH.lastIndexOf("/") + 1)
@@ -66,6 +71,7 @@ pipeline {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
+                        echo "🔄 Restarting Docker containers..."
                         ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
                             cd ${env.DEST_BASE_PATH}
                             # Uncomment below if needed
