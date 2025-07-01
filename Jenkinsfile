@@ -15,9 +15,14 @@ pipeline {
                 sshagent(credentials: [SSH_KEY]) {
                     script {
                         def lines = readFile(env.FILES_LIST_FILE).split("\n")
-                        for (filePath in lines) {
-                            filePath = filePath.trim()
+                        for (rawLine in lines) {
+                            def filePath = rawLine.trim()
                             if (!filePath) continue
+
+                            // Remove trailing slash if it's a folder
+                            if (filePath.endsWith("/")) {
+                                filePath = filePath[0..-2]
+                            }
 
                             def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
                             def destPath = "${DEST_BASE_PATH}/${filePath}"
@@ -38,22 +43,22 @@ pipeline {
                                     echo "🛡️ Backing up directory as _rev_..."
                                     echo "1234" | sudo -S mv "${fileName}" "${fileName}_rev_${timestamp}"
                                 else
-                                    echo "⚠️ ${fileName} does not exist, skipping _rev_ backup."
+                                    echo "⚠️ \${fileName} does not exist, skipping _rev_ backup."
                                 fi
 
                                 echo "🔍 Looking for latest non-_rev_ backup..."
-                                BACKUP=\$(ls -1td ${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1)
+                                BACKUP=\$(ls -1td \${fileName}_* 2>/dev/null | grep -v '_rev_' | head -n1)
 
                                 if [ -n "\$BACKUP" ]; then
                                     echo "📦 Found backup: \$BACKUP"
-                                    echo "🔁 Restoring \$BACKUP → ${fileName}"
-                                    echo "1234" | sudo -S mv "\$BACKUP" "${fileName}"
+                                    echo "🔁 Restoring \$BACKUP → \${fileName}"
+                                    echo "1234" | sudo -S mv "\$BACKUP" "\${fileName}"
                                 else
-                                    echo "⚠️ No valid backup found for ${fileName}"
+                                    echo "⚠️ No valid backup found for \${fileName}"
                                 fi
 
                                 echo "🧹 Cleaning old _rev_ backups..."
-                                ls -1t ${fileName}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                                ls -1t \${fileName}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
                                 EOF
                             """
                         }
