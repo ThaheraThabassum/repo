@@ -39,6 +39,9 @@ pipeline {
                     writeFile file: 'timestamp.txt', text: TIMESTAMP
 
                     echo "✔ Timestamp: ${TIMESTAMP}"
+                    if (env.ZIP_FILE_NAME) echo "✔ UI Zip: ${env.ZIP_FILE_NAME}"
+                    if (env.USERMGMT_ZIP_NAME) echo "✔ Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
+                    if (env.MASTERDATA_ZIP_NAME) echo "✔ Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
                 }
             }
         }
@@ -82,46 +85,60 @@ pipeline {
                         def timestamp = readFile('timestamp.txt').trim()
                         sh """
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
-                                cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}
+                                cd ${UI_DEPLOY_PATH}
 
                                 if [ "${env.REVERT_USERMGMT}" == "true" ]; then
                                     echo "🔄 Reverting Usermanagement..."
+                                    cd ${UI_FOLDER_NAME}
                                     [ -d usermanagement ] && sudo mv usermanagement usermanagement_current || true
                                     sudo rm -rf usermanagement_revert_*
-                                    [ -d usermanagement_current ] && sudo mv usermanagement_current usermanagement_revert_${timestamp} || true
-                                    latest_um=$(ls -d usermanagement_* | grep -v revert | sort -r | head -n 1)
-                                    [ -n "$latest_um" ] && sudo mv "$latest_um" usermanagement
+                                    [ -d usermanagement_current ] && sudo mv usermanagement_current usermanagement_revert_\${timestamp} || true
+                                    latest_user_backup=$(ls -td usermanagement_* | head -n 1)
+                                    [ -d "\$latest_user_backup" ] && sudo mv "\$latest_user_backup" usermanagement
                                     sudo chmod -R 777 usermanagement
+                                    cd ..
                                 fi
 
                                 if [ "${env.REVERT_MASTERDATA}" == "true" ]; then
                                     echo "🔄 Reverting Masterdata..."
+                                    cd ${UI_FOLDER_NAME}
                                     [ -d masterdata ] && sudo mv masterdata masterdata_current || true
                                     sudo rm -rf masterdata_revert_*
-                                    [ -d masterdata_current ] && sudo mv masterdata_current masterdata_revert_${timestamp} || true
-                                    latest_md=$(ls -d masterdata_* | grep -v revert | sort -r | head -n 1)
-                                    [ -n "$latest_md" ] && sudo mv "$latest_md" masterdata
+                                    [ -d masterdata_current ] && sudo mv masterdata_current masterdata_revert_\${timestamp} || true
+                                    latest_master_backup=$(ls -td masterdata_* | head -n 1)
+                                    [ -d "\$latest_master_backup" ] && sudo mv "\$latest_master_backup" masterdata
                                     sudo chmod -R 777 masterdata
+                                    cd ..
                                 fi
 
                                 if [ "${env.REVERT_UI}" == "true" ]; then
                                     echo "🔄 Reverting UI..."
-                                    cd ${UI_DEPLOY_PATH}
                                     [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_current || true
                                     sudo rm -rf ${UI_FOLDER_NAME}_revert_*
-                                    [ -d ${UI_FOLDER_NAME}_current ] && sudo mv ${UI_FOLDER_NAME}_current ${UI_FOLDER_NAME}_revert_${timestamp} || true
-                                    latest_ui=$(ls -d ${UI_FOLDER_NAME}_* | grep -v revert | sort -r | head -n 1)
-                                    [ -n "$latest_ui" ] && sudo mv "$latest_ui" ${UI_FOLDER_NAME}
+                                    [ -d ${UI_FOLDER_NAME}_current ] && sudo mv ${UI_FOLDER_NAME}_current ${UI_FOLDER_NAME}_revert_\${timestamp} || true
+                                    latest_ui_backup=$(ls -td ${UI_FOLDER_NAME}_* | head -n 1)
+                                    [ -d "\$latest_ui_backup" ] && sudo mv "\$latest_ui_backup" ${UI_FOLDER_NAME}
 
                                     echo "↩️ Restoring pdf folder from UI revert..."
-                                    [ -d ${UI_FOLDER_NAME}_revert_${timestamp}/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_${timestamp}/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
+                                    [ -d ${UI_FOLDER_NAME}_revert_\${timestamp}/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_\${timestamp}/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
+
+                                    echo "📁 Backing up existing usermanagement and masterdata before restoring from UI revert..."
+                                    cd ${UI_FOLDER_NAME}
+                                    [ -d usermanagement ] && sudo mv usermanagement usermanagement_old_\${timestamp} || true
+                                    [ -d masterdata ] && sudo mv masterdata masterdata_old_\${timestamp} || true
 
                                     echo "📁 Copying usermanagement and masterdata from UI revert..."
-                                    cd ${UI_FOLDER_NAME}
-                                    [ -d ../${UI_FOLDER_NAME}_revert_${timestamp}/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_${timestamp}/usermanagement . || true
-                                    [ -d ../${UI_FOLDER_NAME}_revert_${timestamp}/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_${timestamp}/masterdata . || true
-                                    sudo chmod -R 777 .
+                                    [ -d ../${UI_FOLDER_NAME}_revert_\${timestamp}/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\${timestamp}/usermanagement . || true
+                                    [ -d ../${UI_FOLDER_NAME}_revert_\${timestamp}/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\${timestamp}/masterdata . || true
+
+                                    sudo chmod -R 777 ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}
+                                    cd ..
                                 fi
+
+                                echo "🧹 Cleaning old revert backups..."
+                                find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" -exec sudo rm -rf {} +
+                                find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" -exec sudo rm -rf {} +
+                                find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" -exec sudo rm -rf {} +
                             '
                         """
                     }
