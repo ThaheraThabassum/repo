@@ -63,8 +63,8 @@ pipeline {
                                         "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S chmod 777 ${imageTar} ${imageTarBak}"
 
                                     echo "✅ Loading Docker image on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
+                                    #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        #"cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
                                 """
                             } else {
                                 def trimmedPath = filePath
