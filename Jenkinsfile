@@ -15,17 +15,31 @@ pipeline {
         stage('Read Deployment Zip File Names') {
             steps {
                 script {
-                    def lines = readFile('ui_deploy_filenames.txt').readLines().findAll { it?.trim() }
+                    def filePath = 'ui_deploy_filenames.txt'
+                    def lines = readFile(filePath).readLines().findAll { it?.trim() }
+
                     for (line in lines) {
-                        def (key, value) = line.split('=', 2)*.trim()
-                        switch (key?.toUpperCase()) {
-                            case 'UI': env.ZIP_FILE_NAME = value; break
-                            case 'USERMANAGEMENT': env.USERMGMT_ZIP_NAME = value; break
-                            case 'MASTERDATA': env.MASTERDATA_ZIP_NAME = value; break
+                        def parts = line.split('=', 2)
+                        def key = parts[0]?.trim()?.toUpperCase()
+                        def value = parts.size() > 1 ? parts[1]?.trim() : ""
+
+                        if (key == 'UI') {
+                            env.ZIP_FILE_NAME = value
+                            env.LOCAL_ZIP_PATH = "${DEST_TMP_PATH}/${value}"
+                        } else if (key == 'USERMANAGEMENT') {
+                            env.USERMGMT_ZIP_NAME = value
+                        } else if (key == 'MASTERDATA') {
+                            env.MASTERDATA_ZIP_NAME = value
                         }
                     }
-                    env.TIMESTAMP = new Date().format("dd_MM_yy_HH_mm_ss")
-                    writeFile file: 'timestamp.txt', text: env.TIMESTAMP
+
+                    TIMESTAMP = new Date().format("dd_MM_yy_HH_mm_ss")
+                    writeFile file: 'timestamp.txt', text: TIMESTAMP
+
+                    echo "✔ Timestamp: ${TIMESTAMP}"
+                    if (env.ZIP_FILE_NAME) echo "✔ UI Zip: ${env.ZIP_FILE_NAME}"
+                    if (env.USERMGMT_ZIP_NAME) echo "✔ Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
+                    if (env.MASTERDATA_ZIP_NAME) echo "✔ Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
                 }
             }
         }
@@ -33,21 +47,26 @@ pipeline {
         stage('Check Revert Flags') {
             steps {
                 script {
-                    def lines = readFile('ui_revert_files.txt').readLines().findAll { it?.trim() }
+                    def revertFile = 'ui_revert_files.txt'
+                    def revertLines = readFile(revertFile).readLines().findAll { it?.trim() }
+
                     env.REVERT_UI = "false"
                     env.REVERT_USERMGMT = "false"
                     env.REVERT_MASTERDATA = "false"
-                    for (line in lines) {
-                        def (key, value) = line.split('=', 2)*.trim()
-                        switch (key?.toUpperCase()) {
-                            case 'UI': env.REVERT_UI = value.toLowerCase(); break
-                            case 'USERMANAGEMENT': env.REVERT_USERMGMT = value.toLowerCase(); break
-                            case 'MASTERDATA': env.REVERT_MASTERDATA = value.toLowerCase(); break
-                        }
+
+                    for (line in revertLines) {
+                        def parts = line.split('=', 2)
+                        def key = parts[0]?.trim()?.toUpperCase()
+                        def value = parts.size() > 1 ? parts[1]?.trim()?.toLowerCase() : ""
+
+                        if (key == 'UI') env.REVERT_UI = value
+                        else if (key == 'USERMANAGEMENT') env.REVERT_USERMGMT = value
+                        else if (key == 'MASTERDATA') env.REVERT_MASTERDATA = value
                     }
                 }
             }
         }
+
 
         stage('Revert Selected Modules') {
             when {
