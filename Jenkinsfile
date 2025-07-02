@@ -4,7 +4,7 @@ pipeline {
     environment {
         FILES_LIST_FILE = "files_to_revert.txt"
         REMOTE_USER = "thahera"
-        REMOTE_HOST = "3.7.132.76"
+        REMOTE_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         SUDO_PASS = "1234"
@@ -66,7 +66,7 @@ pipeline {
                                 echo "🧹 Cleaning old _rev_ backups..."
                                 #ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
                                 find . -maxdepth 1 -name "${FILE_NAME}_rev_*" -printf "%T@ %p\n" 2>/dev/null | \
-                                    sort -nr | tail -n +2 | cut -d' ' -f2- | xargs -r echo "${SUDO_PASS}" | sudo -S rm -rf
+                                    sort -nr | tail -n +2 | cut -d' ' -f2- | xargs -r sudo rm -rf
 EOF
 
                             """
@@ -84,7 +84,7 @@ EOF
                         ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
                             cd ${env.DEST_BASE_PATH}
                             # Uncomment below if needed:
-                           
+                            # sudo docker-compose up --build -d --force-recreate
                         '
                     """
                 }
