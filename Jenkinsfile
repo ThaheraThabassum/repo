@@ -151,15 +151,15 @@ pipeline {
                             CONTAINERS=\$(sudo docker ps -aq)
                             if [ -n \"\$CONTAINERS\" ]; then
                                 echo \"Stopping containers...\"
-                                #sudo docker stop \$CONTAINERS
+                                
                                 echo \"Removing containers...\"
-                                #sudo docker rm \$CONTAINERS
+                                
                             else
                                 echo \"No running containers to stop/remove.\"
                             fi
                             echo \"Recreating containers with docker-compose...\"
                             cd ${DEST_BASE_PATH}
-                            #sudo docker-compose up --build -d --force-recreate
+                            
                         '"
                     '''
                 }
