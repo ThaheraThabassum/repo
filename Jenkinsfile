@@ -30,7 +30,7 @@ pipeline {
                                 def imageName = filePath.replace("image:", "").trim()
                                 def imageBase = imageName.tokenize("/").last().replaceAll("[:/]", "_")
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
-                                def imageTar = "${imageBase}_${timestamp}.tar"
+                                def imageTar = "${imageBase}_local_${timestamp}.tar"
                                 def imageTarBak = "${imageBase}_uat_bak_${timestamp}.tar"
 
                                 sh """
