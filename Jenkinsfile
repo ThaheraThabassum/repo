@@ -34,7 +34,7 @@ pipeline {
 
                                     if [ -n "\$TAR_FILE" ]; then
                                         echo "✅ Found backup: \$TAR_FILE"
-                                        echo "${SUDO_PASS}" | sudo -S docker load -i "\$TAR_FILE"
+                                        #echo "${SUDO_PASS}" | sudo -S docker load -i "\$TAR_FILE"
                                     else
                                         echo "⚠️ No backup image tar found for ${imageName}"
                                     fi
