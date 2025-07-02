@@ -54,11 +54,11 @@ pipeline {
                                     scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${IMAGE_WORK_DIR}/${imageTar} \
                                         ${REMOTE_USER}@${DEST_HOST}:${IMAGE_WORK_DIR}/
 
-                                    echo "Backing up existing Docker image on DEST_HOST..."
+                                    echo " 🛡️Backing up existing Docker image on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                         "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker save -o ${imageTarBak} ${imageName} || echo 'No existing image to backup.'"
 
-                                    echo "Setting permissions on backup and new image tar..."
+                                    echo "🔒 Setting permissions on backup and new image tar..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                         "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S chmod 777 ${imageTar} ${imageTarBak}"
 
@@ -96,7 +96,7 @@ pipeline {
                                         echo "Copying directory from SOURCE_HOST to Jenkins workspace..."
                                         scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"\$SRC_PATH" "\$TEMP_DIR"
 
-                                        echo "Backing up existing directory on DEST_HOST..."
+                                        echo "🛡️Backing up existing directory on DEST_HOST..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                             "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" || echo 'No existing dir to backup.'"
 
@@ -106,7 +106,7 @@ pipeline {
                                         echo "Transferring directory..."
                                         scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\$(basename \"\$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_DIR/"
 
-                                        echo "Setting permissions for transferred directory..."
+                                        echo "🔒 Setting permissions for transferred directory..."
 
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
 
@@ -119,12 +119,15 @@ pipeline {
                                         TEMP_FILE="./temp_\$FILE_NAME"
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
 
+                                        echo "🛡️Backing up existing directory on DEST_HOST..."
+
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                             "[ -f \"\$DEST_PATH\" ] && cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP || echo 'No file to backup.'"
 
                                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"\$SRC_PATH" "\$TEMP_FILE"
                                         scp -o StrictHostKeyChecking=no "\$TEMP_FILE" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_PATH"
 
+                                        echo "🔒 Setting permissions for transferred directory..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 \"\$DEST_PATH\""
                                         rm -f "\$TEMP_FILE"
 
