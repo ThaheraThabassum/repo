@@ -65,8 +65,10 @@ pipeline {
 
                                 echo "🧹 Cleaning old _rev_ backups..."
                                 #ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
-                                find . -maxdepth 1 -name "${FILE_NAME}_rev_*" -printf "%T@ %p\n" 2>/dev/null | \
-                                    sort -nr | tail -n +2 | cut -d' ' -f2- | xargs -r echo "${SUDO_PASS}" | sudo -S rm -rf
+                                find . -maxdepth 1 -name "${FILE_NAME}_rev_*" -printf "%T@ %p\\n" 2>/dev/null | \
+                                    sort -nr | tail -n +2 | cut -d' ' -f2- | while read oldfile; do
+                                        echo "${SUDO_PASS}" | sudo -S rm -rf "\$oldfile"
+                                    done
 EOF
 
                             """
