@@ -6,7 +6,7 @@ pipeline {
         REMOTE_USER = "thahera"
         REMOTE_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
-        DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda-DevOps"
+        DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         SUDO_PASS = "1234"
     }
 
