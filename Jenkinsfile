@@ -95,7 +95,6 @@ pipeline {
                         if [ "${env.REVERT_UI}" = "true" ]; then
                             echo "🔄 Reverting UI..."
                             [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_current || true
-                            sudo rm -rf ${UI_FOLDER_NAME}_revert_*
                             [ -d ${UI_FOLDER_NAME}_current ] && sudo mv ${UI_FOLDER_NAME}_current ${UI_FOLDER_NAME}_revert_\$TIMESTAMP || true
                             [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP ] && sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP ${UI_FOLDER_NAME}
 
@@ -125,8 +124,6 @@ EOF
                 }
             }
         }
-
-
 
 
         stage('Transfer Zip Files') {
