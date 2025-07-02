@@ -15,33 +15,17 @@ pipeline {
         stage('Read Deployment Zip File Names') {
             steps {
                 script {
-                    def filePath = 'ui_deploy_filenames.txt'
-                    def lines = readFile(filePath).readLines().findAll { it?.trim() }
-
+                    def lines = readFile('ui_deploy_filenames.txt').readLines().findAll { it?.trim() }
                     for (line in lines) {
-                        def parts = line.split('=', 2)
-                        if (parts.size() == 2) {
-                            def key = parts[0].trim().toUpperCase()
-                            def value = parts[1].trim()
-
-                            if (key == 'UI') {
-                                env.ZIP_FILE_NAME = value
-                                env.LOCAL_ZIP_PATH = "${DEST_TMP_PATH}/${value}"
-                            } else if (key == 'USERMANAGEMENT') {
-                                env.USERMGMT_ZIP_NAME = value
-                            } else if (key == 'MASTERDATA') {
-                                env.MASTERDATA_ZIP_NAME = value
-                            }
+                        def (key, value) = line.split('=', 2)*.trim()
+                        switch (key?.toUpperCase()) {
+                            case 'UI': env.ZIP_FILE_NAME = value; break
+                            case 'USERMANAGEMENT': env.USERMGMT_ZIP_NAME = value; break
+                            case 'MASTERDATA': env.MASTERDATA_ZIP_NAME = value; break
                         }
                     }
-
-                    TIMESTAMP = new Date().format("dd_MM_yy_HH_mm_ss")
-                    writeFile file: 'timestamp.txt', text: TIMESTAMP
-
-                    echo "✔ Timestamp: ${TIMESTAMP}"
-                    if (env.ZIP_FILE_NAME) echo "✔ UI Zip: ${env.ZIP_FILE_NAME}"
-                    if (env.USERMGMT_ZIP_NAME) echo "✔ Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
-                    if (env.MASTERDATA_ZIP_NAME) echo "✔ Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
+                    env.TIMESTAMP = new Date().format("dd_MM_yy_HH_mm_ss")
+                    writeFile file: 'timestamp.txt', text: env.TIMESTAMP
                 }
             }
         }
@@ -49,22 +33,16 @@ pipeline {
         stage('Check Revert Flags') {
             steps {
                 script {
-                    def revertFile = 'ui_revert_files.txt'
-                    def revertLines = readFile(revertFile).readLines().findAll { it?.trim() }
-
+                    def lines = readFile('ui_revert_files.txt').readLines().findAll { it?.trim() }
                     env.REVERT_UI = "false"
                     env.REVERT_USERMGMT = "false"
                     env.REVERT_MASTERDATA = "false"
-
-                    for (line in revertLines) {
-                        def parts = line.split('=', 2)
-                        if (parts.size() == 2) {
-                            def key = parts[0].trim().toUpperCase()
-                            def value = parts[1].trim().toLowerCase()
-
-                            if (key == 'UI') env.REVERT_UI = value
-                            else if (key == 'USERMANAGEMENT') env.REVERT_USERMGMT = value
-                            else if (key == 'MASTERDATA') env.REVERT_MASTERDATA = value
+                    for (line in lines) {
+                        def (key, value) = line.split('=', 2)*.trim()
+                        switch (key?.toUpperCase()) {
+                            case 'UI': env.REVERT_UI = value.toLowerCase(); break
+                            case 'USERMANAGEMENT': env.REVERT_USERMGMT = value.toLowerCase(); break
+                            case 'MASTERDATA': env.REVERT_MASTERDATA = value.toLowerCase(); break
                         }
                     }
                 }
@@ -74,79 +52,79 @@ pipeline {
         stage('Revert Selected Modules') {
             when {
                 anyOf {
-                    expression { return env.REVERT_UI == 'true' }
-                    expression { return env.REVERT_USERMGMT == 'true' }
-                    expression { return env.REVERT_MASTERDATA == 'true' }
+                    expression { env.REVERT_UI == 'true' }
+                    expression { env.REVERT_USERMGMT == 'true' }
+                    expression { env.REVERT_MASTERDATA == 'true' }
                 }
             }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
                     script {
-                        def timestamp = readFile('timestamp.txt').trim()
-                        def revertUI = env.REVERT_UI ?: "false"
-                        def revertUsermgmt = env.REVERT_USERMGMT ?: "false"
-                        def revertMasterdata = env.REVERT_MASTERDATA ?: "false"
-
+                        def timestamp = env.TIMESTAMP
                         sh """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << EOF
-                            export REVERT_UI=${revertUI}
-                            export REVERT_USERMGMT=${revertUsermgmt}
-                            export REVERT_MASTERDATA=${revertMasterdata}
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<EOF
                             export TIMESTAMP=${timestamp}
                             cd ${UI_DEPLOY_PATH}
 
-                            if [ "\$REVERT_USERMGMT" == "true" ]; then
+                            if [ "${env.REVERT_USERMGMT}" = "true" ]; then
                                 echo "🔄 Reverting Usermanagement..."
                                 cd ${UI_FOLDER_NAME}
-                                [ -d usermanagement ] && sudo mv usermanagement usermanagement_revert_\$TIMESTAMP || true
-                                latest_user_backup=\$(ls -td usermanagement_* | head -n 1)
-                                [ -d "\$latest_user_backup" ] && sudo mv "\$latest_user_backup" usermanagement
-                                sudo chmod -R 777 usermanagement
+                                if [ -d usermanagement ]; then
+                                    sudo mv usermanagement usermanagement_revert_\$TIMESTAMP
+                                    latest=
+                                    latest=\$(ls -td usermanagement_* 2>/dev/null | head -n1)
+                                    if [ -d "\$latest" ]; then
+                                        sudo mv "\$latest" usermanagement
+                                        sudo chmod -R 777 usermanagement
+                                    fi
+                                fi
                                 cd ..
                             fi
 
-                            if [ "\$REVERT_MASTERDATA" == "true" ]; then
+                            if [ "${env.REVERT_MASTERDATA}" = "true" ]; then
                                 echo "🔄 Reverting Masterdata..."
                                 cd ${UI_FOLDER_NAME}
-                                [ -d masterdata ] && sudo mv masterdata masterdata_revert_\$TIMESTAMP || true
-                                latest_master_backup=\$(ls -td masterdata_* | head -n 1)
-                                [ -d "\$latest_master_backup" ] && sudo mv "\$latest_master_backup" masterdata
-                                sudo chmod -R 777 masterdata
+                                if [ -d masterdata ]; then
+                                    sudo mv masterdata masterdata_revert_\$TIMESTAMP
+                                    latest=\$(ls -td masterdata_* 2>/dev/null | head -n1)
+                                    if [ -d "\$latest" ]; then
+                                        sudo mv "\$latest" masterdata
+                                        sudo chmod -R 777 masterdata
+                                    fi
+                                fi
                                 cd ..
                             fi
 
-                            if [ "\$REVERT_UI" == "true" ]; then
+                            if [ "${env.REVERT_UI}" = "true" ]; then
                                 echo "🔄 Reverting UI..."
-                                [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_revert_\$TIMESTAMP || true
-                                latest_ui_backup=\$(ls -td ${UI_FOLDER_NAME}_* | head -n 1)
-                                [ -d "\$latest_ui_backup" ] && sudo mv "\$latest_ui_backup" ${UI_FOLDER_NAME}
-
-                                echo "↩️ Restoring pdf folder from UI revert..."
-                                [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
-
-                                echo "📁 Backing up existing usermanagement and masterdata before restoring from UI revert..."
-                                cd ${UI_FOLDER_NAME}
-                                [ -d usermanagement ] && sudo mv usermanagement usermanagement_old_\$TIMESTAMP || true
-                                [ -d masterdata ] && sudo mv masterdata masterdata_old_\$TIMESTAMP || true
-
-                                echo "📁 Copying usermanagement and masterdata from UI revert..."
-                                [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
-                                [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
-
-                                cd ${UI_DEPLOY_PATH}
-                                sudo chmod -R 777 ${UI_FOLDER_NAME}
+                                if [ -d ${UI_FOLDER_NAME} ]; then
+                                    sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_revert_\$TIMESTAMP
+                                    latest=\$(ls -td ${UI_FOLDER_NAME}_* 2>/dev/null | head -n1)
+                                    if [ -d "\$latest" ]; then
+                                        sudo mv "\$latest" ${UI_FOLDER_NAME}
+                                    fi
+                                    [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
+                                    cd ${UI_FOLDER_NAME}
+                                    [ -d usermanagement ] && sudo mv usermanagement usermanagement_old_\$TIMESTAMP || true
+                                    [ -d masterdata ] && sudo mv masterdata masterdata_old_\$TIMESTAMP || true
+                                    [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
+                                    [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
+                                    cd ..
+                                    sudo chmod -R 777 ${UI_FOLDER_NAME}
+                                fi
                             fi
 
                             echo "🪩 Cleaning old revert backups..."
                             find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" ! -name "${UI_FOLDER_NAME}_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
                             find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" ! -name "usermanagement_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
                             find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" ! -name "masterdata_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
-                            EOF
+EOF
                         """
                     }
                 }
             }
         }
+
 
 
         stage('Transfer Zip Files') {
