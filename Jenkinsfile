@@ -31,7 +31,7 @@ pipeline {
                                     cd ${IMAGE_WORK_DIR}
 
                                     echo "🔍 Searching for latest image backup tar for ${imageName}..."
-                                    TAR_FILE=\$(ls -t ${imageBase}_uat_bak_*.tar 2>/dev/null | head -n1)
+                                    TAR_FILE=\$(ls -t ${imageBase}_prod_bak_*.tar 2>/dev/null | head -n1)
 
                                     if [ -n "\$TAR_FILE" ]; then
                                         echo "✅ Found backup: \$TAR_FILE"
