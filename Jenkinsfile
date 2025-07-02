@@ -88,7 +88,7 @@ pipeline {
                         def revertMasterdata = env.REVERT_MASTERDATA ?: "false"
 
                         sh """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << EOF
                             export REVERT_UI=${revertUI}
                             export REVERT_USERMGMT=${revertUsermgmt}
                             export REVERT_MASTERDATA=${revertMasterdata}
