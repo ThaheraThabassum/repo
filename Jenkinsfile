@@ -105,6 +105,17 @@ EOF
                     sh """
                         echo "🔄 Restarting Docker containers (if needed)..."
                         ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
+                            CONTAINERS=\$(sudo docker ps -aq)
+                            if [ -n \"\$CONTAINERS\" ]; then
+                                echo \"Stopping containers...\"
+                                #sudo docker stop \$CONTAINERS
+                                echo \"Removing containers...\"
+                                #sudo docker rm \$CONTAINERS
+                            else
+                                echo \"No running containers to stop/remove.\"
+                            fi
+                            echo \"Recreating containers with docker-compose...\"
+                           
                             cd ${env.DEST_BASE_PATH}
                             # Uncomment below if needed:
                             # sudo docker-compose up --build -d --force-recreate
