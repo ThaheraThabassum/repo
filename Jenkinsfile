@@ -105,8 +105,9 @@ EOF
                     sh """
                         echo "🔄 Restarting Docker containers (if needed)..."
                         ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
-                            cd ${env.IMAGE_WORK_DIR}
-                            # Optional: echo "${SUDO_PASS}" | sudo -S docker-compose up --build -d --force-recreate
+                            cd ${env.DEST_BASE_PATH}
+                            # Uncomment below if needed:
+                            # sudo docker-compose up --build -d --force-recreate
                         '
                     """
                 }
