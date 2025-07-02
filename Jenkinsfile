@@ -20,23 +20,26 @@ pipeline {
 
                     for (line in lines) {
                         def parts = line.split('=', 2)
-                        def key = parts[0]?.trim()?.toUpperCase()
-                        def value = parts.size() > 1 ? parts[1]?.trim() : ""
+                        if (parts.size() == 2) {
+                            def key = parts[0].trim().toUpperCase()
+                            def value = parts[1].trim()
 
-                        if (key == 'UI') {
-                            env.ZIP_FILE_NAME = value
-                            env.LOCAL_ZIP_PATH = "${DEST_TMP_PATH}/${value}"
-                        } else if (key == 'USERMANAGEMENT') {
-                            env.USERMGMT_ZIP_NAME = value
-                        } else if (key == 'MASTERDATA') {
-                            env.MASTERDATA_ZIP_NAME = value
+                            if (key == 'UI') {
+                                env.ZIP_FILE_NAME = value
+                                env.LOCAL_ZIP_PATH = "${DEST_TMP_PATH}/${value}"
+                            } else if (key == 'USERMANAGEMENT') {
+                                env.USERMGMT_ZIP_NAME = value
+                            } else if (key == 'MASTERDATA') {
+                                env.MASTERDATA_ZIP_NAME = value
+                            }
                         }
                     }
 
-                    TIMESTAMP = new Date().format("dd_MM_yy_HH_mm_ss")
-                    writeFile file: 'timestamp.txt', text: TIMESTAMP
+                    def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
+                    writeFile file: 'timestamp.txt', text: timestamp
+                    env.TIMESTAMP = timestamp
 
-                    echo "✔ Timestamp: ${TIMESTAMP}"
+                    echo "✔ Timestamp: ${timestamp}"
                     if (env.ZIP_FILE_NAME) echo "✔ UI Zip: ${env.ZIP_FILE_NAME}"
                     if (env.USERMGMT_ZIP_NAME) echo "✔ Usermanagement Zip: ${env.USERMGMT_ZIP_NAME}"
                     if (env.MASTERDATA_ZIP_NAME) echo "✔ Masterdata Zip: ${env.MASTERDATA_ZIP_NAME}"
@@ -56,33 +59,34 @@ pipeline {
 
                     for (line in revertLines) {
                         def parts = line.split('=', 2)
-                        def key = parts[0]?.trim()?.toUpperCase()
-                        def value = parts.size() > 1 ? parts[1]?.trim()?.toLowerCase() : ""
+                        if (parts.size() == 2) {
+                            def key = parts[0].trim().toUpperCase()
+                            def value = parts[1].trim().toLowerCase()
 
-                        if (key == 'UI') env.REVERT_UI = value
-                        else if (key == 'USERMANAGEMENT') env.REVERT_USERMGMT = value
-                        else if (key == 'MASTERDATA') env.REVERT_MASTERDATA = value
+                            if (key == 'UI') env.REVERT_UI = value
+                            else if (key == 'USERMANAGEMENT') env.REVERT_USERMGMT = value
+                            else if (key == 'MASTERDATA') env.REVERT_MASTERDATA = value
+                        }
                     }
                 }
             }
         }
 
-
         stage('Revert Selected Modules') {
             when {
                 anyOf {
-                    expression { env.REVERT_UI == 'true' }
-                    expression { env.REVERT_USERMGMT == 'true' }
-                    expression { env.REVERT_MASTERDATA == 'true' }
+                    expression { return env.REVERT_UI == 'true' }
+                    expression { return env.REVERT_USERMGMT == 'true' }
+                    expression { return env.REVERT_MASTERDATA == 'true' }
                 }
             }
             steps {
                 sshagent(credentials: [env.SSH_KEY]) {
                     script {
-                        def timestamp = env.TIMESTAMP
+                        def timestamp = readFile('timestamp.txt').trim()
                         sh """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} <<EOF
-                            export TIMESTAMP=${timestamp}
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
+                            TIMESTAMP="${timestamp}"
                             cd ${UI_DEPLOY_PATH}
 
                             if [ "${env.REVERT_USERMGMT}" = "true" ]; then
@@ -90,12 +94,12 @@ pipeline {
                                 cd ${UI_FOLDER_NAME}
                                 if [ -d usermanagement ]; then
                                     sudo mv usermanagement usermanagement_revert_\$TIMESTAMP
-                                    latest=
-                                    latest=\$(ls -td usermanagement_* 2>/dev/null | head -n1)
-                                    if [ -d "\$latest" ]; then
-                                        sudo mv "\$latest" usermanagement
-                                        sudo chmod -R 777 usermanagement
-                                    fi
+                                fi
+                                latest=\$(ls -td usermanagement_* 2>/dev/null | head -n1)
+                                echo "🔁 Restoring: \$latest"
+                                if [ -d "\$latest" ]; then
+                                    sudo mv "\$latest" usermanagement
+                                    sudo chmod -R 777 usermanagement
                                 fi
                                 cd ..
                             fi
@@ -105,11 +109,12 @@ pipeline {
                                 cd ${UI_FOLDER_NAME}
                                 if [ -d masterdata ]; then
                                     sudo mv masterdata masterdata_revert_\$TIMESTAMP
-                                    latest=\$(ls -td masterdata_* 2>/dev/null | head -n1)
-                                    if [ -d "\$latest" ]; then
-                                        sudo mv "\$latest" masterdata
-                                        sudo chmod -R 777 masterdata
-                                    fi
+                                fi
+                                latest=\$(ls -td masterdata_* 2>/dev/null | head -n1)
+                                echo "🔁 Restoring: \$latest"
+                                if [ -d "\$latest" ]; then
+                                    sudo mv "\$latest" masterdata
+                                    sudo chmod -R 777 masterdata
                                 fi
                                 cd ..
                             fi
@@ -118,26 +123,36 @@ pipeline {
                                 echo "🔄 Reverting UI..."
                                 if [ -d ${UI_FOLDER_NAME} ]; then
                                     sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_revert_\$TIMESTAMP
-                                    latest=\$(ls -td ${UI_FOLDER_NAME}_* 2>/dev/null | head -n1)
-                                    if [ -d "\$latest" ]; then
-                                        sudo mv "\$latest" ${UI_FOLDER_NAME}
-                                    fi
-                                    [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
-                                    cd ${UI_FOLDER_NAME}
-                                    [ -d usermanagement ] && sudo mv usermanagement usermanagement_old_\$TIMESTAMP || true
-                                    [ -d masterdata ] && sudo mv masterdata masterdata_old_\$TIMESTAMP || true
-                                    [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
-                                    [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
-                                    cd ..
-                                    sudo chmod -R 777 ${UI_FOLDER_NAME}
                                 fi
+                                latest=\$(ls -td ${UI_FOLDER_NAME}_* 2>/dev/null | head -n1)
+                                echo "🔁 Restoring: \$latest"
+                                if [ -d "\$latest" ]; then
+                                    sudo mv "\$latest" ${UI_FOLDER_NAME}
+                                fi
+
+                                echo "↩️ Restoring pdf folder from UI revert..."
+                                if [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ]; then
+                                    sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/
+                                fi
+
+                                echo "📁 Backing up usermanagement and masterdata in UI..."
+                                cd ${UI_FOLDER_NAME}
+                                [ -d usermanagement ] && sudo mv usermanagement usermanagement_old_\$TIMESTAMP || true
+                                [ -d masterdata ] && sudo mv masterdata masterdata_old_\$TIMESTAMP || true
+
+                                echo "📁 Restoring usermanagement and masterdata from UI revert..."
+                                [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
+                                [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
+
+                                cd ${UI_DEPLOY_PATH}
+                                sudo chmod -R 777 ${UI_FOLDER_NAME}
                             fi
 
                             echo "🪩 Cleaning old revert backups..."
                             find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" ! -name "${UI_FOLDER_NAME}_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
                             find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" ! -name "usermanagement_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
                             find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" ! -name "masterdata_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
-EOF
+                            EOF
                         """
                     }
                 }
