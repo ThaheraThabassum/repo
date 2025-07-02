@@ -98,7 +98,7 @@ pipeline {
 
                                         echo "Backing up existing directory on DEST_HOST..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                            "[ -d \"\$DEST_PATH\" ] && mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" || echo 'No existing dir to backup.'"
+                                            "[ -d \"\$DEST_PATH\" ] && echo '1234' | sudo -S mv \"\$DEST_PATH\" \"\${DEST_DIR}/\${FILE_NAME}_\${TIMESTAMP}\" || echo 'No existing dir to backup.'"
 
                                         echo "Creating destination directory on DEST_HOST..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
@@ -107,8 +107,7 @@ pipeline {
                                         scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\$(basename \"\$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_DIR/"
 
                                         echo "Setting permissions for transferred directory..."
-
-                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
+                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '1234' | sudo -S chmod -R 777 \"\$DEST_PATH\""
 
                                         rm -rf "\$TEMP_DIR"
 
@@ -120,12 +119,12 @@ pipeline {
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
 
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                            "[ -f \"\$DEST_PATH\" ] && cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP || echo 'No file to backup.'"
+                                            "[ -f \"\$DEST_PATH\" ] && echo '1234' | sudo -S cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP || echo 'No file to backup.'"
 
                                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"\$SRC_PATH" "\$TEMP_FILE"
                                         scp -o StrictHostKeyChecking=no "\$TEMP_FILE" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_PATH"
 
-                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 \"\$DEST_PATH\""
+                                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "echo '1234' | sudo -S chmod 777 \"\$DEST_PATH\""
                                         rm -f "\$TEMP_FILE"
 
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
@@ -147,19 +146,19 @@ pipeline {
                         echo "🔄 Restarting Docker containers on DEST_HOST"
                         echo "==============================="
 
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'
-                            CONTAINERS=\$(sudo docker ps -aq)
-                            if [ -n \"\$CONTAINERS\" ]; then
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c "'\
+                            CONTAINERS=$(echo '1234' | sudo -S docker ps -aq)
+                            if [ -n \"$CONTAINERS\" ]; then
                                 echo \"Stopping containers...\"
-                                
+                               
                                 echo \"Removing containers...\"
-                                
+                               
                             else
                                 echo \"No running containers to stop/remove.\"
                             fi
                             echo \"Recreating containers with docker-compose...\"
                             cd ${DEST_BASE_PATH}
-                            
+                           
                         '"
                     '''
                 }
