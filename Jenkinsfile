@@ -108,9 +108,9 @@ EOF
                             CONTAINERS=\$(sudo docker ps -aq)
                             if [ -n \"\$CONTAINERS\" ]; then
                                 echo \"Stopping containers...\"
-                                #sudo docker stop \$CONTAINERS
+                                #echo "1234" | sudo -S docker stop $CONTAINERS
                                 echo \"Removing containers...\"
-                                #sudo docker rm \$CONTAINERS
+                                #echo "1234" | sudo -S docker rm $CONTAINERS
                             else
                                 echo \"No running containers to stop/remove.\"
                             fi
@@ -118,7 +118,7 @@ EOF
                            
                             cd ${env.DEST_BASE_PATH}
                             # Uncomment below if needed:
-                            # sudo docker-compose up --build -d --force-recreate
+                            #echo "1234" | sudo -S docker-compose up --build -d --force-recreate
                         '
                     """
                 }
