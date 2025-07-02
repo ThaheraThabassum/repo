@@ -20,7 +20,7 @@ pipeline {
                             def FILE_PATH = rawLine.trim()
                             if (!FILE_PATH) continue
 
-                            // Remove trailing slash if present
+                            // Remove trailing slash
                             if (FILE_PATH.endsWith("/")) {
                                 FILE_PATH = FILE_PATH[0..-2]
                             }
@@ -33,7 +33,7 @@ pipeline {
                             echo "======== 🔄 Reverting: ${FILE_PATH} ========"
 
                             sh """
-                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash <<EOF
+                                ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -s <<'EOF'
                                 set -e
                                 cd "${DEST_DIR}"
 
@@ -64,9 +64,11 @@ pipeline {
                                 fi
 
                                 echo "🧹 Cleaning old _rev_ backups..."
-                                find . -maxdepth 1 -name "${FILE_NAME}_rev_*" -printf "%T@ %p\\n" 2>/dev/null | \
+                                #ls -1t ${FILE_NAME}_rev_* 2>/dev/null | tail -n +2 | xargs -r sudo rm -rf
+                                find . -maxdepth 1 -name "${FILE_NAME}_rev_*" -printf "%T@ %p\n" 2>/dev/null | \
                                     sort -nr | tail -n +2 | cut -d' ' -f2- | xargs -r echo "${SUDO_PASS}" | sudo -S rm -rf
 EOF
+
                             """
                         }
                     }
@@ -79,11 +81,11 @@ EOF
                 sshagent(credentials: [SSH_KEY]) {
                     sh """
                         echo "🔄 Restarting Docker containers (if needed)..."
-                        ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash <<EOF
+                        ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
                             cd ${env.DEST_BASE_PATH}
-                            # Uncomment below if needed
-                            
-EOF
+                            # Uncomment below if needed:
+                           
+                        '
                     """
                 }
             }
