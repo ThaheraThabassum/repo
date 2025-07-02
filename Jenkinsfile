@@ -148,21 +148,21 @@ EOF
 
                         if (env.ZIP_FILE_NAME) {
                             sh """
-                                echo "Copying UI zip..."
+                                echo "📦 Transferring UI zip..."
                                 scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${env.ZIP_FILE_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
                             """
                         }
 
                         if (env.USERMGMT_ZIP_NAME) {
                             sh """
-                                echo "Copying usermanagement zip..."
+                                echo "📦 Transferring USERMANAGEMENT zip..."
                                 scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${env.USERMGMT_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
                             """
                         }
 
                         if (env.MASTERDATA_ZIP_NAME) {
                             sh """
-                                echo "Copying masterdata zip..."
+                                echo "📦 Transferring MASTERDATA zip"
                                 scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${DEST_TMP_PATH}/${env.MASTERDATA_ZIP_NAME} ${REMOTE_USER}@${DEST_HOST}:${DEST_TMP_PATH}/
                             """
                         }
@@ -180,19 +180,24 @@ EOF
                     script {
                         def timestamp = readFile('timestamp.txt').trim()
                         sh """
+                            echo "🚀 Starting UI Deployment..."    
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
                                 cd ${DEST_TMP_PATH}
+                                echo "📂 Extracting UI zip: ${env.ZIP_FILE_NAME}"
                                 sudo unzip -o ${env.ZIP_FILE_NAME}
 
                                 cd ${UI_DEPLOY_PATH}
+                                echo "📁 Backing up current UI folder if exists"
                                 [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_${timestamp} || echo "No existing UI to backup"
                                 sudo mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/
 
                                 cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets
+                                echo "📁 Backing up pdf folder if exists"
                                 [ -d pdf ] && sudo mv pdf pdf_${timestamp} || echo "No pdf to backup"
 
                                 cd ${UI_DEPLOY_PATH}
                                 BACKUP=${UI_FOLDER_NAME}_${timestamp}
+                                echo "📁 Restoring folders from backup"
                                 if [ -d "\$BACKUP" ]; then
                                     [ -d "\$BACKUP/assets/pdf" ] && sudo mv "\$BACKUP/assets/pdf" "${UI_FOLDER_NAME}/assets/" || true
                                     [ -d "\$BACKUP/usermanagement" ] && sudo cp -r "\$BACKUP/usermanagement" "${UI_FOLDER_NAME}/" || true
@@ -200,6 +205,7 @@ EOF
                                 fi
 
                                 cd ${UI_DEPLOY_PATH}
+                                echo "🧹 Cleaning up older UI backups"
                                 ls -td ${UI_FOLDER_NAME}_*/ | tail -n +4 | xargs -r sudo rm -rf
                                 sudo chmod -R 777 ${UI_FOLDER_NAME}
                             '
@@ -216,15 +222,18 @@ EOF
                     script {
                         def timestamp = readFile('timestamp.txt').trim()
                         sh """
+                            echo "🚀 Starting Usermanagement Deployment..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
                                 cd ${DEST_TMP_PATH}
+                                echo "📂 Extracting usermanagement zip: ${env.USERMGMT_ZIP_NAME}"
                                 sudo unzip -o ${env.USERMGMT_ZIP_NAME}
 
                                 cd ${UI_DEPLOY_PATH}/kmb
+                                echo "📁 Backing up usermanagement folder if exists"
                                 [ -d usermanagement ] && sudo mv usermanagement usermanagement_${timestamp} || echo "No existing usermanagement to backup"
                                 sudo mv ${DEST_TMP_PATH}/usermanagement ${UI_DEPLOY_PATH}/kmb/
                                 sudo cp -r usermanagement_${timestamp}/assets/user_files usermanagement/assets/ || true
-
+                                echo "🧹 Cleaning up older usermanagement backups"
                                 ls -td usermanagement_*/ | tail -n +4 | xargs -r sudo rm -rf
                                 sudo chmod -R 777 usermanagement
                             '
@@ -241,14 +250,17 @@ EOF
                     script {
                         def timestamp = readFile('timestamp.txt').trim()
                         sh """
+                            echo "🚀 Starting Masterdata Deployment..."
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
                                 cd ${DEST_TMP_PATH}
+                                echo "📂 Extracting masterdata zip: ${env.MASTERDATA_ZIP_NAME}"
                                 sudo unzip -o ${env.MASTERDATA_ZIP_NAME}
 
                                 cd ${UI_DEPLOY_PATH}/kmb
+                                echo "📁 Backing up masterdata folder if exists"
                                 [ -d masterdata ] && sudo mv masterdata masterdata_${timestamp} || echo "No existing masterdata to backup"
                                 sudo mv ${DEST_TMP_PATH}/masterdata ${UI_DEPLOY_PATH}/kmb/
-
+                                echo "🧹 Cleaning up older masterdata backups"
                                 ls -td masterdata_*/ | tail -n +4 | xargs -r sudo rm -rf
                                 sudo chmod -R 777 masterdata
                             '
