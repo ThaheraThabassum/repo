@@ -94,9 +94,12 @@ pipeline {
 
                         if [ "${env.REVERT_UI}" = "true" ]; then
                             echo "🔄 Reverting UI..."
-                            [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_current || true
-                            [ -d ${UI_FOLDER_NAME}_current ] && sudo mv ${UI_FOLDER_NAME}_current ${UI_FOLDER_NAME}_revert_\$TIMESTAMP || true
-                            [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP ] && sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP ${UI_FOLDER_NAME}
+                            [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_revert_\$TIMESTAMP || true
+                            latest=\$(ls -td ${UI_FOLDER_NAME}_* 2>/dev/null | grep -v revert | head -n1)
+                            if [ -n "\$latest" ] && [ -d "\$latest" ]; then
+                                echo "🔁 Restoring: \$latest"
+                                sudo mv "\$latest" ${UI_FOLDER_NAME}
+                            fi
 
                             echo "↩️ Restoring pdf folder from UI revert..."
                             [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
