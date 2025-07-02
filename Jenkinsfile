@@ -114,16 +114,27 @@ pipeline {
                             sudo chmod -R 777 ${UI_FOLDER_NAME}
                         fi
 
-                        echo "🪩 Cleaning old revert backups..."
-                        find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" ! -name "${UI_FOLDER_NAME}_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
-                        find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" ! -name "usermanagement_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
-                        find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" ! -name "masterdata_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
+                        if [ "${env.REVERT_UI}" = "true" ]; then
+                            echo "🧹 Cleaning old UI revert backups..."
+                            find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" ! -name "${UI_FOLDER_NAME}_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
+                        fi
+
+                        if [ "${env.REVERT_USERMGMT}" = "true" ]; then
+                            echo "🧹 Cleaning old Usermanagement revert backups..."
+                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" ! -name "usermanagement_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
+                        fi
+
+                        if [ "${env.REVERT_MASTERDATA}" = "true" ]; then
+                            echo "🧹 Cleaning old Masterdata revert backups..."
+                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" ! -name "masterdata_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
+                        fi
 EOF
                         """
                     }
                 }
             }
         }
+
 
 
         stage('Transfer Zip Files') {
