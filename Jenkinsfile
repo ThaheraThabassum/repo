@@ -7,6 +7,7 @@ pipeline {
         REMOTE_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda"
+        IMAGE_WORK_DIR = "/home/thahera"
         SUDO_PASS = "1234"
     }
 
@@ -27,14 +28,14 @@ pipeline {
 
                                 sh """
                                     ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -s <<'EOF'
-                                    cd ${env.DEST_BASE_PATH}
+                                    cd ${IMAGE_WORK_DIR}
 
                                     echo "🔍 Searching for latest image backup tar for ${imageName}..."
                                     TAR_FILE=\$(ls -t ${imageBase}_uat_bak_*.tar 2>/dev/null | head -n1)
 
                                     if [ -n "\$TAR_FILE" ]; then
                                         echo "✅ Found backup: \$TAR_FILE"
-                                        #echo "${SUDO_PASS}" | sudo -S docker load -i "\$TAR_FILE"
+                                        echo "${SUDO_PASS}" | sudo -S docker load -i "\$TAR_FILE"
                                     else
                                         echo "⚠️ No backup image tar found for ${imageName}"
                                     fi
@@ -104,9 +105,8 @@ EOF
                     sh """
                         echo "🔄 Restarting Docker containers (if needed)..."
                         ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -c '
-                            cd ${env.DEST_BASE_PATH}
-                            # Uncomment below if needed:
-                            # echo "${SUDO_PASS}" | sudo -S docker-compose up --build -d --force-recreate
+                            cd ${env.IMAGE_WORK_DIR}
+                            # Optional: echo "${SUDO_PASS}" | sudo -S docker-compose up --build -d --force-recreate
                         '
                     """
                 }
