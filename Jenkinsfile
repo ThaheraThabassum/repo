@@ -30,8 +30,8 @@ pipeline {
                                 def imageName = filePath.replace("image:", "").trim()
                                 def imageBase = imageName.tokenize("/").last().replaceAll("[:/]", "_")
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
-                                def imageTar = "${imageBase}_${timestamp}.tar"
-                                def imageTarBak = "${imageBase}_uat_bak_${timestamp}.tar"
+                                def imageTar = "${imageBase}_UAT_to_PROD_${timestamp}.tar"
+                                def imageTarBak = "${imageBase}_prod_bak_${timestamp}.tar"
 
                                 sh """
                                     echo "🧹 Cleaning up old .tar files on SOURCE_HOST..."
@@ -64,7 +64,7 @@ pipeline {
 
                                     echo "✅ Loading Docker image on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
+                                        #"cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
                                 """
                             } else {
                                 def trimmedPath = filePath
