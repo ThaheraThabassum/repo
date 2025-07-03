@@ -17,7 +17,7 @@ pipeline {
     stages {
         stage('Checkout Main Branch') {
             steps {
-                sh 'git checkout kotak_db'
+                sh 'git checkout kotak_PROD_db'
             }
         }
 
@@ -26,7 +26,7 @@ pipeline {
                 sh '''
                     git reset --hard
                     git clean -fd
-                    git pull origin kotak_db
+                    git pull origin kotak_PROD_db
                 '''
             }
         }
