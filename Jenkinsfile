@@ -4,10 +4,10 @@ pipeline {
     environment {
         REMOTE_USER = "thahera"
         SOURCE_HOST = "3.111.252.210"
-        DEST_HOST = "65.1.176.9"
+        DEST_HOST = "3.7.132.76"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         DEST_TMP_PATH = "/home/thahera"
-        UI_DEPLOY_PATH = "/opt/lampp"
+        UI_DEPLOY_PATH = "/var/www/"
         UI_FOLDER_NAME = "kmb"
     }
 
