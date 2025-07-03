@@ -72,7 +72,7 @@ pipeline {
                             echo "🔄 Reverting Usermanagement..."
                             cd ${UI_FOLDER_NAME}
                             [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_revert_\$TIMESTAMP || true
-                            latest=\$(ls -td usermanagement_* 2>/dev/null | grep -v revert | head -n1)
+                            latest=\$(ls -td usermanagement_[0-9]* 2>/dev/null | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
                                 echo "\$SUDO_PASS" | sudo -S mv "\$latest" usermanagement
@@ -93,7 +93,7 @@ pipeline {
                             echo "🔄 Reverting Masterdata..."
                             cd ${UI_FOLDER_NAME}
                             [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_revert_\$TIMESTAMP || true
-                            latest=\$(ls -td masterdata_* 2>/dev/null | grep -v revert | head -n1)
+                            latest=\$(ls -td masterdata_[0-9]* 2>/dev/null | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
                                 echo "\$SUDO_PASS" | sudo -S mv "\$latest" masterdata
@@ -113,7 +113,7 @@ pipeline {
                         if [ "${env.REVERT_UI}" = "true" ]; then
                             echo "🔄 Reverting UI..."
                             [ -d ${UI_FOLDER_NAME} ] && echo "\$SUDO_PASS" | sudo -S mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_revert_\$TIMESTAMP || true
-                            latest=\$(ls -td ${UI_FOLDER_NAME}_* 2>/dev/null | grep -v revert | head -n1)
+                            latest=\$(ls -td ${UI_FOLDER_NAME}_[0-9]* 2>/dev/null | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
                                 echo "\$SUDO_PASS" | sudo -S mv "\$latest" ${UI_FOLDER_NAME}
@@ -149,6 +149,7 @@ EOF
                 }
             }
         }
+
 
 
 
