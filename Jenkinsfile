@@ -204,7 +204,7 @@ EOF
 
                                 cd ${UI_DEPLOY_PATH}
                                 echo "🧹 Cleaning up older UI backups"
-                                ls -td ${UI_FOLDER_NAME}_*/ | tail -n +4 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                ls -td ${UI_FOLDER_NAME}_*/ | tail -n +3 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 ${UI_FOLDER_NAME}
                             '
                         """
@@ -234,7 +234,7 @@ EOF
                                 echo "\$SUDO_PASS" | sudo -S cp -r usermanagement_${timestamp}/assets/user_files usermanagement/assets/ || true
 
                                 echo "🧹 Cleaning up older usermanagement backups"
-                                ls -td usermanagement_*/ | tail -n +4 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                ls -td usermanagement_*/ | tail -n +3 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             '
                         """
@@ -263,7 +263,7 @@ EOF
                                 echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/masterdata ${UI_DEPLOY_PATH}/kmb/
 
                                 echo "🧹 Cleaning up older masterdata backups"
-                                ls -td masterdata_*/ | tail -n +4 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                ls -td masterdata_*/ | tail -n +3 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 masterdata
                             '
                         """
