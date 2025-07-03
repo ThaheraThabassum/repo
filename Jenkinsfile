@@ -122,14 +122,14 @@ pipeline {
                             echo "↩️ Restoring pdf folder from UI revert..."
                             [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && echo "\$SUDO_PASS" | sudo -S mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
 
-                            echo "📁 Backing up existing usermanagement and masterdata before restoring from UI revert..."
-                            cd ${UI_FOLDER_NAME}
-                            [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_old_\$TIMESTAMP || true
-                            [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_old_\$TIMESTAMP || true
+                            #echo "📁 Backing up existing usermanagement and masterdata before restoring from UI revert..."
+                            #cd ${UI_FOLDER_NAME}
+                            #[ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_old_\$TIMESTAMP || true
+                            #[ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_old_\$TIMESTAMP || true
 
-                            echo "📁 Copying usermanagement and masterdata from UI revert..."
-                            [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
-                            [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
+                            #echo "📁 Copying usermanagement and masterdata from UI revert..."
+                            #[ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
+                            #[ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
 
                             cd ${UI_DEPLOY_PATH}
                             echo "\$SUDO_PASS" | sudo -S chmod -R 777 ${UI_FOLDER_NAME}
