@@ -78,6 +78,9 @@ pipeline {
                                 echo "\$SUDO_PASS" | sudo -S mv "\$latest" usermanagement
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             fi
+                            echo "🧹 Cleaning up old usermanagement revert backups..."
+                            latest_revert=\$(ls -td usermanagement_revert_* 2>/dev/null | head -n1)
+                            ls -td usermanagement_revert_* 2>/dev/null | grep -v "\$latest_revert" | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
                             cd ..
                         fi
 
@@ -91,6 +94,9 @@ pipeline {
                                 echo "\$SUDO_PASS" | sudo -S mv "\$latest" masterdata
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 masterdata
                             fi
+                            echo "🧹 Cleaning up old masterdata revert backups..."
+                            latest_revert=\$(ls -td masterdata_revert_* 2>/dev/null | head -n1)
+                            ls -td masterdata_revert_* 2>/dev/null | grep -v "\$latest_revert" | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
                             cd ..
                         fi
 
@@ -117,21 +123,10 @@ pipeline {
 
                             cd ${UI_DEPLOY_PATH}
                             echo "\$SUDO_PASS" | sudo -S chmod -R 777 ${UI_FOLDER_NAME}
-                        fi
 
-                        if [ "${env.REVERT_UI}" = "true" ]; then
-                            echo "🧹 Cleaning old UI revert backups..."
-                            find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" ! -name "${UI_FOLDER_NAME}_revert_\$TIMESTAMP" -exec echo "\$SUDO_PASS" | sudo -S rm -rf {} +
-                        fi
-
-                        if [ "${env.REVERT_USERMGMT}" = "true" ]; then
-                            echo "🧹 Cleaning old Usermanagement revert backups..."
-                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" ! -name "usermanagement_revert_\$TIMESTAMP" -exec echo "\$SUDO_PASS" | sudo -S rm -rf {} +
-                        fi
-
-                        if [ "${env.REVERT_MASTERDATA}" = "true" ]; then
-                            echo "🧹 Cleaning old Masterdata revert backups..."
-                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" ! -name "masterdata_revert_\$TIMESTAMP" -exec echo "\$SUDO_PASS" | sudo -S rm -rf {} +
+                            echo "🧹 Cleaning up old UI revert backups..."
+                            latest_revert=\$(ls -td ${UI_FOLDER_NAME}_revert_* 2>/dev/null | head -n1)
+                            ls -td ${UI_FOLDER_NAME}_revert_* 2>/dev/null | grep -v "\$latest_revert" | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
                         fi
 EOF
                         """
@@ -139,6 +134,7 @@ EOF
                 }
             }
         }
+
 
         stage('Transfer Zip Files') {
             steps {
