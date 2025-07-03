@@ -234,7 +234,8 @@ EOF
                                 echo "\$SUDO_PASS" | sudo -S cp -r usermanagement_${timestamp}/assets/user_files usermanagement/assets/ || true
 
                                 echo "🧹 Cleaning up older usermanagement backups"
-                                ls -td usermanagement_*/ | tail -n +3 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                #ls -td usermanagement_*/ | tail -n +3 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                ls -td usermanagement_* | grep -v '_revert_' | tail -n +3 | while read line; do echo "\$SUDO_PASS" | sudo -S rm -rf "\$line"; done
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             '
                         """
