@@ -79,8 +79,13 @@ pipeline {
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             fi
                             echo "🧹 Cleaning up old usermanagement revert backups..."
-                            latest_revert=\$(ls -td usermanagement_revert_* 2>/dev/null | head -n1)
-                            ls -td usermanagement_revert_* 2>/dev/null | grep -v "\$latest_revert" | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                            latest_revert=\$(basename \$(ls -td usermanagement_revert_* 2>/dev/null | head -n1))
+                            ls -td usermanagement_revert_* 2>/dev/null | while read dir; do
+                                base=\$(basename "\$dir")
+                                if [ "\$base" != "\$latest_revert" ]; then
+                                    echo "\$SUDO_PASS" | sudo -S rm -rf "\$dir"
+                                fi
+                            done
                             cd ..
                         fi
 
@@ -95,8 +100,13 @@ pipeline {
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 masterdata
                             fi
                             echo "🧹 Cleaning up old masterdata revert backups..."
-                            latest_revert=\$(ls -td masterdata_revert_* 2>/dev/null | head -n1)
-                            ls -td masterdata_revert_* 2>/dev/null | grep -v "\$latest_revert" | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                            latest_revert=\$(basename \$(ls -td masterdata_revert_* 2>/dev/null | head -n1))
+                            ls -td masterdata_revert_* 2>/dev/null | while read dir; do
+                                base=\$(basename "\$dir")
+                                if [ "\$base" != "\$latest_revert" ]; then
+                                    echo "\$SUDO_PASS" | sudo -S rm -rf "\$dir"
+                                fi
+                            done
                             cd ..
                         fi
 
@@ -125,8 +135,13 @@ pipeline {
                             echo "\$SUDO_PASS" | sudo -S chmod -R 777 ${UI_FOLDER_NAME}
 
                             echo "🧹 Cleaning up old UI revert backups..."
-                            latest_revert=\$(ls -td ${UI_FOLDER_NAME}_revert_* 2>/dev/null | head -n1)
-                            ls -td ${UI_FOLDER_NAME}_revert_* 2>/dev/null | grep -v "\$latest_revert" | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                            latest_revert=\$(basename \$(ls -td ${UI_FOLDER_NAME}_revert_* 2>/dev/null | head -n1))
+                            ls -td ${UI_FOLDER_NAME}_revert_* 2>/dev/null | while read dir; do
+                                base=\$(basename "\$dir")
+                                if [ "\$base" != "\$latest_revert" ]; then
+                                    echo "\$SUDO_PASS" | sudo -S rm -rf "\$dir"
+                                fi
+                            done
                         fi
 EOF
                         """
@@ -134,6 +149,7 @@ EOF
                 }
             }
         }
+
 
 
         stage('Transfer Zip Files') {
