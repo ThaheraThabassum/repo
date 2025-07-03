@@ -9,6 +9,7 @@ pipeline {
         DEST_TMP_PATH = "/home/thahera"
         UI_DEPLOY_PATH = "/var/www/"
         UI_FOLDER_NAME = "kmb"
+        SUDO_PASS = "1234"
     }
 
     stages {
@@ -64,17 +65,18 @@ pipeline {
                         sh """
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} << 'EOF'
                         export TIMESTAMP=${env.TIMESTAMP}
+                        export SUDO_PASS=${SUDO_PASS}
                         cd ${UI_DEPLOY_PATH}
 
                         if [ "${env.REVERT_USERMGMT}" = "true" ]; then
                             echo "🔄 Reverting Usermanagement..."
                             cd ${UI_FOLDER_NAME}
-                            [ -d usermanagement ] && sudo mv usermanagement usermanagement_revert_\$TIMESTAMP || true
+                            [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_revert_\$TIMESTAMP || true
                             latest=\$(ls -td usermanagement_* 2>/dev/null | grep -v revert | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
-                                sudo mv "\$latest" usermanagement
-                                sudo chmod -R 777 usermanagement
+                                echo "\$SUDO_PASS" | sudo -S mv "\$latest" usermanagement
+                                echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             fi
                             cd ..
                         fi
@@ -82,54 +84,54 @@ pipeline {
                         if [ "${env.REVERT_MASTERDATA}" = "true" ]; then
                             echo "🔄 Reverting Masterdata..."
                             cd ${UI_FOLDER_NAME}
-                            [ -d masterdata ] && sudo mv masterdata masterdata_revert_\$TIMESTAMP || true
+                            [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_revert_\$TIMESTAMP || true
                             latest=\$(ls -td masterdata_* 2>/dev/null | grep -v revert | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
-                                sudo mv "\$latest" masterdata
-                                sudo chmod -R 777 masterdata
+                                echo "\$SUDO_PASS" | sudo -S mv "\$latest" masterdata
+                                echo "\$SUDO_PASS" | sudo -S chmod -R 777 masterdata
                             fi
                             cd ..
                         fi
 
                         if [ "${env.REVERT_UI}" = "true" ]; then
                             echo "🔄 Reverting UI..."
-                            [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_revert_\$TIMESTAMP || true
+                            [ -d ${UI_FOLDER_NAME} ] && echo "\$SUDO_PASS" | sudo -S mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_revert_\$TIMESTAMP || true
                             latest=\$(ls -td ${UI_FOLDER_NAME}_* 2>/dev/null | grep -v revert | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
-                                sudo mv "\$latest" ${UI_FOLDER_NAME}
+                                echo "\$SUDO_PASS" | sudo -S mv "\$latest" ${UI_FOLDER_NAME}
                             fi
 
                             echo "↩️ Restoring pdf folder from UI revert..."
-                            [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && sudo mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
+                            [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && echo "\$SUDO_PASS" | sudo -S mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
 
                             echo "📁 Backing up existing usermanagement and masterdata before restoring from UI revert..."
                             cd ${UI_FOLDER_NAME}
-                            [ -d usermanagement ] && sudo mv usermanagement usermanagement_old_\$TIMESTAMP || true
-                            [ -d masterdata ] && sudo mv masterdata masterdata_old_\$TIMESTAMP || true
+                            [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_old_\$TIMESTAMP || true
+                            [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_old_\$TIMESTAMP || true
 
                             echo "📁 Copying usermanagement and masterdata from UI revert..."
-                            [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
-                            [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && sudo cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
+                            [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
+                            [ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
 
                             cd ${UI_DEPLOY_PATH}
-                            sudo chmod -R 777 ${UI_FOLDER_NAME}
+                            echo "\$SUDO_PASS" | sudo -S chmod -R 777 ${UI_FOLDER_NAME}
                         fi
 
                         if [ "${env.REVERT_UI}" = "true" ]; then
                             echo "🧹 Cleaning old UI revert backups..."
-                            find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" ! -name "${UI_FOLDER_NAME}_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
+                            find . -maxdepth 1 -type d -name "${UI_FOLDER_NAME}_revert_*" ! -name "${UI_FOLDER_NAME}_revert_\$TIMESTAMP" -exec echo "\$SUDO_PASS" | sudo -S rm -rf {} +
                         fi
 
                         if [ "${env.REVERT_USERMGMT}" = "true" ]; then
                             echo "🧹 Cleaning old Usermanagement revert backups..."
-                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" ! -name "usermanagement_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
+                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "usermanagement_revert_*" ! -name "usermanagement_revert_\$TIMESTAMP" -exec echo "\$SUDO_PASS" | sudo -S rm -rf {} +
                         fi
 
                         if [ "${env.REVERT_MASTERDATA}" = "true" ]; then
                             echo "🧹 Cleaning old Masterdata revert backups..."
-                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" ! -name "masterdata_revert_\$TIMESTAMP" -exec sudo rm -rf {} +
+                            find ${UI_FOLDER_NAME} -maxdepth 1 -type d -name "masterdata_revert_*" ! -name "masterdata_revert_\$TIMESTAMP" -exec echo "\$SUDO_PASS" | sudo -S rm -rf {} +
                         fi
 EOF
                         """
@@ -137,8 +139,6 @@ EOF
                 }
             }
         }
-
-
 
         stage('Transfer Zip Files') {
             steps {
@@ -171,8 +171,6 @@ EOF
             }
         }
 
-
-
         stage('Deploy UI') {
             when { expression { return env.ZIP_FILE_NAME } }
             steps {
@@ -181,27 +179,28 @@ EOF
                         def timestamp = readFile('timestamp.txt').trim()
                         sh """
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                                export SUDO_PASS=${SUDO_PASS}
                                 cd ${DEST_TMP_PATH}
-                                sudo unzip -o ${env.ZIP_FILE_NAME}
+                                echo "\$SUDO_PASS" | sudo -S unzip -o ${env.ZIP_FILE_NAME}
 
                                 cd ${UI_DEPLOY_PATH}
-                                [ -d ${UI_FOLDER_NAME} ] && sudo mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_${timestamp} || echo "No existing UI to backup"
-                                sudo mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/
+                                [ -d ${UI_FOLDER_NAME} ] && echo "\$SUDO_PASS" | sudo -S mv ${UI_FOLDER_NAME} ${UI_FOLDER_NAME}_${timestamp} || echo "No existing UI to backup"
+                                echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/${UI_FOLDER_NAME} ${UI_DEPLOY_PATH}/
 
                                 cd ${UI_DEPLOY_PATH}/${UI_FOLDER_NAME}/assets
-                                [ -d pdf ] && sudo mv pdf pdf_${timestamp} || echo "No pdf to backup"
+                                [ -d pdf ] && echo "\$SUDO_PASS" | sudo -S mv pdf pdf_${timestamp} || echo "No pdf to backup"
 
                                 cd ${UI_DEPLOY_PATH}
                                 BACKUP=${UI_FOLDER_NAME}_${timestamp}
                                 if [ -d "\$BACKUP" ]; then
-                                    [ -d "\$BACKUP/assets/pdf" ] && sudo mv "\$BACKUP/assets/pdf" "${UI_FOLDER_NAME}/assets/" || true
-                                    [ -d "\$BACKUP/usermanagement" ] && sudo cp -r "\$BACKUP/usermanagement" "${UI_FOLDER_NAME}/" || true
-                                    [ -d "\$BACKUP/masterdata" ] && sudo cp -r "\$BACKUP/masterdata" "${UI_FOLDER_NAME}/" || true
+                                    [ -d "\$BACKUP/assets/pdf" ] && echo "\$SUDO_PASS" | sudo -S mv "\$BACKUP/assets/pdf" "${UI_FOLDER_NAME}/assets/" || true
+                                    [ -d "\$BACKUP/usermanagement" ] && echo "\$SUDO_PASS" | sudo -S cp -r "\$BACKUP/usermanagement" "${UI_FOLDER_NAME}/" || true
+                                    [ -d "\$BACKUP/masterdata" ] && echo "\$SUDO_PASS" | sudo -S cp -r "\$BACKUP/masterdata" "${UI_FOLDER_NAME}/" || true
                                 fi
 
                                 cd ${UI_DEPLOY_PATH}
-                                ls -td ${UI_FOLDER_NAME}_*/ | tail -n +4 | xargs -r sudo rm -rf
-                                sudo chmod -R 777 ${UI_FOLDER_NAME}
+                                ls -td ${UI_FOLDER_NAME}_*/ | tail -n +4 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                echo "\$SUDO_PASS" | sudo -S chmod -R 777 ${UI_FOLDER_NAME}
                             '
                         """
                     }
@@ -217,16 +216,17 @@ EOF
                         def timestamp = readFile('timestamp.txt').trim()
                         sh """
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                                export SUDO_PASS=${SUDO_PASS}
                                 cd ${DEST_TMP_PATH}
-                                sudo unzip -o ${env.USERMGMT_ZIP_NAME}
+                                echo "\$SUDO_PASS" | sudo -S unzip -o ${env.USERMGMT_ZIP_NAME}
 
                                 cd ${UI_DEPLOY_PATH}/kmb
-                                [ -d usermanagement ] && sudo mv usermanagement usermanagement_${timestamp} || echo "No existing usermanagement to backup"
-                                sudo mv ${DEST_TMP_PATH}/usermanagement ${UI_DEPLOY_PATH}/kmb/
-                                sudo cp -r usermanagement_${timestamp}/assets/user_files usermanagement/assets/ || true
+                                [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_${timestamp} || echo "No existing usermanagement to backup"
+                                echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/usermanagement ${UI_DEPLOY_PATH}/kmb/
+                                echo "\$SUDO_PASS" | sudo -S cp -r usermanagement_${timestamp}/assets/user_files usermanagement/assets/ || true
 
-                                ls -td usermanagement_*/ | tail -n +4 | xargs -r sudo rm -rf
-                                sudo chmod -R 777 usermanagement
+                                ls -td usermanagement_*/ | tail -n +4 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             '
                         """
                     }
@@ -242,15 +242,16 @@ EOF
                         def timestamp = readFile('timestamp.txt').trim()
                         sh """
                             ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} bash -c '
+                                export SUDO_PASS=${SUDO_PASS}
                                 cd ${DEST_TMP_PATH}
-                                sudo unzip -o ${env.MASTERDATA_ZIP_NAME}
+                                echo "\$SUDO_PASS" | sudo -S unzip -o ${env.MASTERDATA_ZIP_NAME}
 
                                 cd ${UI_DEPLOY_PATH}/kmb
-                                [ -d masterdata ] && sudo mv masterdata masterdata_${timestamp} || echo "No existing masterdata to backup"
-                                sudo mv ${DEST_TMP_PATH}/masterdata ${UI_DEPLOY_PATH}/kmb/
+                                [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_${timestamp} || echo "No existing masterdata to backup"
+                                echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/masterdata ${UI_DEPLOY_PATH}/kmb/
 
-                                ls -td masterdata_*/ | tail -n +4 | xargs -r sudo rm -rf
-                                sudo chmod -R 777 masterdata
+                                ls -td masterdata_*/ | tail -n +4 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
+                                echo "\$SUDO_PASS" | sudo -S chmod -R 777 masterdata
                             '
                         """
                     }
