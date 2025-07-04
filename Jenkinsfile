@@ -7,7 +7,7 @@ pipeline {
         DEST_HOST = "3.7.132.76"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         DEST_TMP_PATH = "/home/thahera"
-        UI_DEPLOY_PATH = "/var/www/"
+        UI_DEPLOY_PATH = "/var/www/html/"
         UI_FOLDER_NAME = "kmb"
         SUDO_PASS = "1234"
     }
