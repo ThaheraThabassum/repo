@@ -30,34 +30,38 @@ pipeline {
 
                             // New functionality for extraction_folder
                             if (filePath == "extraction_folder") {
-                                def folderName = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\$", "").tokenize("/").last()
-
+                                def folderName = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\\$", "").tokenize("/").last()
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
 
                                 sh """
                                     set -e
                                     TEMP_DIR="./temp_extraction_\${folderName}_\${timestamp}"
-                                    mkdir -p "\$TEMP_DIR/\${folderName}"
+                                    mkdir -p "\$TEMP_DIR"
 
                                     echo "📥 Copying extraction folder from SOURCE_HOST..."
-                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"${CUSTOM_EXTRACTION_SOURCE}/" "\$TEMP_DIR/\${folderName}/"
+                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${CUSTOM_EXTRACTION_SOURCE} "\$TEMP_DIR/"
 
                                     echo "🛡️ Backing up existing folder on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "[ -d '${CUSTOM_EXTRACTION_DEST}/\${folderName}' ] && mv '${CUSTOM_EXTRACTION_DEST}/\${folderName}' '${CUSTOM_EXTRACTION_DEST}/\${folderName}_\${timestamp}' || echo 'No folder to backup.'"
+                                        "[ -d '${CUSTOM_EXTRACTION_DEST}' ] && mv '${CUSTOM_EXTRACTION_DEST}' '${CUSTOM_EXTRACTION_DEST}_\${timestamp}' || echo 'No folder to backup.'"
 
                                     echo "📁 Creating destination path on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p '${CUSTOM_EXTRACTION_DEST}'"
 
                                     echo "🚀 Transferring extracted folder to DEST_HOST..."
-                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\${folderName}" ${REMOTE_USER}@${DEST_HOST}:"\${CUSTOM_EXTRACTION_DEST}/"
+                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\${folderName}/*" ${REMOTE_USER}@${DEST_HOST}:\${CUSTOM_EXTRACTION_DEST}/
 
                                     echo "🔒 Setting permissions..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "sudo chmod -R 777 '${CUSTOM_EXTRACTION_DEST}/\${folderName}'"
+                                        "sudo chmod -R 777 '${CUSTOM_EXTRACTION_DEST}'"
 
                                     echo "🧹 Cleaning temp directory..."
                                     rm -rf "\$TEMP_DIR"
+
+                                    echo "🧼 Cleaning old backups (keep last 3) on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "cd \$(dirname '${CUSTOM_EXTRACTION_DEST}') && ls -dt \$(basename '${CUSTOM_EXTRACTION_DEST}')_* 2>/dev/null | tail -n +4 | xargs -r rm -rf"
+                            
                                 """
                                 continue
                             }
