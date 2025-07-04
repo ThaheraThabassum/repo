@@ -47,7 +47,7 @@ pipeline {
                                         "[ -d '${CUSTOM_EXTRACTION_DEST}/\${folderName}' ] && mv '${CUSTOM_EXTRACTION_DEST}/\${folderName}' '${CUSTOM_EXTRACTION_DEST}/\${folderName}_\${timestamp}' || echo 'No folder to backup.'"
 
                                     echo "📁 Creating destination path on DEST_HOST..."
-                                   ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p '${CUSTOM_EXTRACTION_DEST}'"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p '${CUSTOM_EXTRACTION_DEST}'"
 
                                     echo "🚀 Transferring extracted folder to DEST_HOST..."
                                     scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\${folderName}" ${REMOTE_USER}@${DEST_HOST}:"\${CUSTOM_EXTRACTION_DEST}/"
