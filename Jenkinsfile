@@ -30,50 +30,43 @@ pipeline {
 
                             // New functionality for extraction_folder
                             if (filePath == "extraction_folder") {
-                                def folderName = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\$", "").tokenize("/").last()
+                                def normalized = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\\$", "")
+                                def folderName = normalized.substring(normalized.lastIndexOf("/") + 1)
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
 
                                 sh """
                                     set -e
                                     TEMP_DIR=./temp_extraction_\${timestamp}
-                                    mkdir -p \$TEMP_DIR
+                                    mkdir -p "\$TEMP_DIR"
 
                                     echo "📥 Copying extraction folder contents from SOURCE_HOST..."
-                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${CUSTOM_EXTRACTION_SOURCE}/* \$TEMP_DIR/
+                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${CUSTOM_EXTRACTION_SOURCE}/* "\$TEMP_DIR/"
 
-                                    echo "🛡️ Backing up existing contents on DEST_HOST..."
+                                    echo "🛡️ Backing up contents of existing folder on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
-                                        if [ -d "${CUSTOM_EXTRACTION_DEST}/${folderName}" ] && [ "$(ls -A ${CUSTOM_EXTRACTION_DEST}/${folderName})" ]; then
-                                            BACKUP_PATH="${CUSTOM_EXTRACTION_DEST}/${folderName}_backup_${timestamp}"
-                                            sudo mkdir -p "\$BACKUP_PATH"
-                                            sudo mv ${CUSTOM_EXTRACTION_DEST}/${folderName}/* "\$BACKUP_PATH"/
-                                            echo "Contents backed up to \$BACKUP_PATH"
-                                        else
-                                            echo "No contents to backup or folder does not exist."
-                                            sudo mkdir -p "${CUSTOM_EXTRACTION_DEST}/${folderName}"
+                                        if [ -d "\${CUSTOM_EXTRACTION_DEST}/\${folderName}" ]; then
+                                            cd "\${CUSTOM_EXTRACTION_DEST}/\${folderName}"
+                                            mkdir -p ../\${folderName}_\${timestamp}
+                                            cp -r * ../\${folderName}_\${timestamp}/
                                         fi
                                     '
 
-                                    echo "🚀 Transferring new contents to DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p /home/${REMOTE_USER}/tmp_deploy_${timestamp}"
-                                    scp -r -o StrictHostKeyChecking=no \$TEMP_DIR/* ${REMOTE_USER}@${DEST_HOST}:/home/${REMOTE_USER}/tmp_deploy_${timestamp}/
+                                    echo "📁 Ensuring destination path exists on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo mkdir -p '\${CUSTOM_EXTRACTION_DEST}/\${folderName}'"
 
-                                    echo "📦 Moving new contents into ${CUSTOM_EXTRACTION_DEST}/${folderName}..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
-                                        sudo cp -rp /home/${REMOTE_USER}/tmp_deploy_${timestamp}/* "${CUSTOM_EXTRACTION_DEST}/${folderName}/"
-                                        sudo rm -rf /home/${REMOTE_USER}/tmp_deploy_${timestamp}
-                                    '
+                                    echo "🚀 Transferring extracted folder contents to DEST_HOST..."
+                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/". ${REMOTE_USER}@${DEST_HOST}:'\${CUSTOM_EXTRACTION_DEST}/\${folderName}/'
 
                                     echo "🔒 Setting permissions..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "sudo chmod -R 777 '${CUSTOM_EXTRACTION_DEST}/${folderName}'"
+                                        "sudo chmod -R 777 '\${CUSTOM_EXTRACTION_DEST}/\${folderName}'"
 
                                     echo "🧹 Cleaning temp directory..."
-                                    rm -rf \$TEMP_DIR
+                                    rm -rf "\$TEMP_DIR"
 
                                     echo "🧼 Cleaning old backups (keep last 3) on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
-                                        cd ${CUSTOM_EXTRACTION_DEST} && ls -dt ${folderName}_backup_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
+                                        cd \${CUSTOM_EXTRACTION_DEST} && ls -dt \${folderName}_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
                                     '
                                 """
                                 continue
