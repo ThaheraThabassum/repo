@@ -10,6 +10,8 @@ pipeline {
         SOURCE_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         IMAGE_WORK_DIR = "/home/thahera"
+        CUSTOM_EXTRACTION_SOURCE = "/custom/source/path"       // update this
+        CUSTOM_EXTRACTION_DEST = "/custom/destination/path"    // update this
     }
 
     stages {
@@ -26,6 +28,40 @@ pipeline {
                             echo " Processing: ${filePath}"
                             echo "======================================="
 
+                            // New functionality for extraction_folder
+                            if (filePath == "extraction_folder") {
+                                def folderName = env.CUSTOM_EXTRACTION_SOURCE.tokenize("/").last()
+                                def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
+
+                                sh """
+                                    set -e
+                                    TEMP_DIR="./temp_extraction_\${folderName}_\${timestamp}"
+                                    mkdir -p "\$TEMP_DIR"
+
+                                    echo "📥 Copying extraction folder from SOURCE_HOST..."
+                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"${CUSTOM_EXTRACTION_SOURCE}" "\$TEMP_DIR"
+
+                                    echo "🛡️ Backing up existing folder on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "[ -d '${CUSTOM_EXTRACTION_DEST}' ] && mv '${CUSTOM_EXTRACTION_DEST}' '${CUSTOM_EXTRACTION_DEST}_\${timestamp}' || echo 'No folder to backup.'"
+
+                                    echo "📁 Creating destination path on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p '${CUSTOM_EXTRACTION_DEST}'"
+
+                                    echo "🚀 Transferring extracted folder to DEST_HOST..."
+                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/${folderName}" ${REMOTE_USER}@${DEST_HOST}:"\${CUSTOM_EXTRACTION_DEST}/"
+
+                                    echo "🔒 Setting permissions..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "sudo chmod -R 777 '${CUSTOM_EXTRACTION_DEST}/${folderName}'"
+
+                                    echo "🧹 Cleaning temp directory..."
+                                    rm -rf "\$TEMP_DIR"
+                                """
+                                continue
+                            }
+
+                            // Existing Docker image handling
                             if (filePath.startsWith("image:")) {
                                 def imageName = filePath.replace("image:", "").trim()
                                 def imageBase = imageName.tokenize("/").last().replaceAll("[:/]", "_")
@@ -75,6 +111,7 @@ pipeline {
                                         "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_local_*.tar"
                                 """
                             } else {
+                                // Existing file/folder logic
                                 def trimmedPath = filePath
                                 sh """
                                     set -e
@@ -115,7 +152,6 @@ pipeline {
                                         scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\$(basename \"\$SRC_PATH\")" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_DIR/"
 
                                         echo "🔒 Setting permissions for transferred directory..."
-
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod -R 777 \"\$DEST_PATH\""
 
                                         rm -rf "\$TEMP_DIR"
@@ -128,14 +164,13 @@ pipeline {
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p \"\$DEST_DIR\""
 
                                         echo "🛡️Backing up existing directory on DEST_HOST..."
-
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                             "[ -f \"\$DEST_PATH\" ] && cp -p \"\$DEST_PATH\" \"\$DEST_PATH\"_\$TIMESTAMP || echo 'No file to backup.'"
 
                                         scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:"\$SRC_PATH" "\$TEMP_FILE"
                                         scp -o StrictHostKeyChecking=no "\$TEMP_FILE" ${REMOTE_USER}@${DEST_HOST}:"\$DEST_PATH"
 
-                                        echo "🔒 Setting permissions for transferred directory..."
+                                        echo "🔒 Setting permissions for transferred file..."
                                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo chmod 777 \"\$DEST_PATH\""
                                         rm -f "\$TEMP_FILE"
 
