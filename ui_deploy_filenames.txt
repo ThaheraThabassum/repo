@@ -1,2 +1,1 @@
-USERMANAGEMENT=usermanagement_kmb_UAT_12_03_2025.zip
-MASTERDATA=masterdata_kmb_UAT_31_01_2025.zip
+
