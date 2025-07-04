@@ -30,7 +30,10 @@ pipeline {
 
                             // New functionality for extraction_folder
                             if (filePath == "extraction_folder") {
-                                def folderName = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\$", "").tokenize("/").last()
+                                #def folderName = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\$", "").tokenize("/").last()
+                                def normalized = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\$", "")
+                                def folderName = normalized.substring(normalized.lastIndexOf("/") + 1)
+
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
 
                                 sh """
