@@ -10,8 +10,8 @@ pipeline {
         SOURCE_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         IMAGE_WORK_DIR = "/home/thahera"
-        CUSTOM_EXTRACTION_SOURCE = "/custom/source/path"       // update this
-        CUSTOM_EXTRACTION_DEST = "/custom/destination/path"    // update this
+        CUSTOM_EXTRACTION_SOURCE = "/var/www/"
+        CUSTOM_EXTRACTION_DEST = "/opt/" 
     }
 
     stages {
