@@ -30,7 +30,17 @@ pipeline {
                 '''
             }
         }
-
+        stage('Validate Excel File Exists') {
+            steps {
+                script {
+                    if (!fileExists(env.LOCAL_EXCEL_FILE)) {
+                        error "❌ Excel file '${env.LOCAL_EXCEL_FILE}' not found. No operations performed. Exiting build."
+                    } else {
+                        echo "✅ Excel file found: '${env.LOCAL_EXCEL_FILE}'"
+                    }
+                }
+            }
+        }
         stage('Upload Excel to Remote Servers') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
