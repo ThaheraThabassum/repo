@@ -36,7 +36,7 @@ pipeline {
                                 sh """
                                     echo "🧹 Cleaning up old .tar files on SOURCE_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \
-                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar || echo 'No old tars to clean.'"
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_local_*.tar || echo 'No old tars to clean.'"
 
                                     echo "Saving image on SOURCE_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST} \
@@ -48,11 +48,15 @@ pipeline {
 
                                     echo " Cleaning up .tar on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_*.tar"
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_local_*.tar"
 
                                     echo "Transferring image tar to DEST_HOST..."
                                     scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${IMAGE_WORK_DIR}/${imageTar} \
                                         ${REMOTE_USER}@${DEST_HOST}:${IMAGE_WORK_DIR}/
+
+                                    echo " Cleaning up .tar on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_uat_bak_*.tar"
 
                                     echo " 🛡️Backing up existing Docker image on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
@@ -65,6 +69,10 @@ pipeline {
                                     echo "✅ Loading Docker image on DEST_HOST..."
                                     #ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                         #"cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker load -i ${imageTar}"
+
+                                    echo " Cleaning up .tar on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_local_*.tar"
                                 """
                             } else {
                                 def trimmedPath = filePath
