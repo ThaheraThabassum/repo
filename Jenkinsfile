@@ -71,16 +71,16 @@ pipeline {
                         if [ "${env.REVERT_USERMGMT}" = "true" ]; then
                             echo "🔄 Reverting Usermanagement..."
                             cd ${UI_FOLDER_NAME}
-                            [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_revert_\$TIMESTAMP || true
-                            latest=\$(ls -td usermanagement_[0-9]* 2>/dev/null | head -n1)
+                            [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement ../usermanagement_revert_\$TIMESTAMP || true
+                            latest=\$(ls -td ../usermanagement_[0-9]* 2>/dev/null | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
                                 echo "\$SUDO_PASS" | sudo -S mv "\$latest" usermanagement
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             fi
                             echo "🧹 Cleaning up old usermanagement revert backups..."
-                            latest_revert=\$(basename \$(ls -td usermanagement_revert_* 2>/dev/null | head -n1))
-                            ls -td usermanagement_revert_* 2>/dev/null | while read dir; do
+                            latest_revert=\$(basename \$(ls -td ../usermanagement_revert_* 2>/dev/null | head -n1))
+                            ls -td ../usermanagement_revert_* 2>/dev/null | while read dir; do
                                 base=\$(basename "\$dir")
                                 if [ "\$base" != "\$latest_revert" ]; then
                                     echo "\$SUDO_PASS" | sudo -S rm -rf "\$dir"
@@ -92,16 +92,16 @@ pipeline {
                         if [ "${env.REVERT_MASTERDATA}" = "true" ]; then
                             echo "🔄 Reverting Masterdata..."
                             cd ${UI_FOLDER_NAME}
-                            [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_revert_\$TIMESTAMP || true
-                            latest=\$(ls -td masterdata_[0-9]* 2>/dev/null | head -n1)
+                            [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata ../masterdata_revert_\$TIMESTAMP || true
+                            latest=\$(ls -td ../masterdata_[0-9]* 2>/dev/null | head -n1)
                             if [ -n "\$latest" ] && [ -d "\$latest" ]; then
                                 echo "🔁 Restoring: \$latest"
                                 echo "\$SUDO_PASS" | sudo -S mv "\$latest" masterdata
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 masterdata
                             fi
                             echo "🧹 Cleaning up old masterdata revert backups..."
-                            latest_revert=\$(basename \$(ls -td masterdata_revert_* 2>/dev/null | head -n1))
-                            ls -td masterdata_revert_* 2>/dev/null | while read dir; do
+                            latest_revert=\$(basename \$(ls -td ../masterdata_revert_* 2>/dev/null | head -n1))
+                            ls -td ../masterdata_revert_* 2>/dev/null | while read dir; do
                                 base=\$(basename "\$dir")
                                 if [ "\$base" != "\$latest_revert" ]; then
                                     echo "\$SUDO_PASS" | sudo -S rm -rf "\$dir"
@@ -122,15 +122,6 @@ pipeline {
                             echo "↩️ Restoring pdf folder from UI revert..."
                             [ -d ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ] && echo "\$SUDO_PASS" | sudo -S mv ${UI_FOLDER_NAME}_revert_\$TIMESTAMP/assets/pdf ${UI_FOLDER_NAME}/assets/ || true
 
-                            #echo "📁 Backing up existing usermanagement and masterdata before restoring from UI revert..."
-                            #cd ${UI_FOLDER_NAME}
-                            #[ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_old_\$TIMESTAMP || true
-                            #[ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_old_\$TIMESTAMP || true
-
-                            #echo "📁 Copying usermanagement and masterdata from UI revert..."
-                            #[ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/usermanagement . || true
-                            #[ -d ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata ] && echo "\$SUDO_PASS" | sudo -S cp -r ../${UI_FOLDER_NAME}_revert_\$TIMESTAMP/masterdata . || true
-
                             cd ${UI_DEPLOY_PATH}
                             echo "\$SUDO_PASS" | sudo -S chmod -R 777 ${UI_FOLDER_NAME}
 
@@ -149,8 +140,6 @@ EOF
                 }
             }
         }
-
-
 
 
         stage('Transfer Zip Files') {
@@ -183,6 +172,7 @@ EOF
                 }
             }
         }
+
 
         stage('Deploy UI') {
             when { expression { return env.ZIP_FILE_NAME } }
@@ -227,6 +217,7 @@ EOF
             }
         }
 
+
         stage('Deploy Usermanagement') {
             when { expression { return env.USERMGMT_ZIP_NAME } }
             steps {
@@ -241,15 +232,14 @@ EOF
                                 echo "📂 Extracting usermanagement zip: ${env.USERMGMT_ZIP_NAME}"
                                 echo "\$SUDO_PASS" | sudo -S unzip -o ${env.USERMGMT_ZIP_NAME}
 
-                                cd ${UI_DEPLOY_PATH}/kmb
+                                cd ${UI_DEPLOY_PATH}${UI_FOLDER_NAME}
                                 echo "📁 Backing up usermanagement folder if exists"
-                                [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement usermanagement_${timestamp} || echo "No existing usermanagement to backup"
-                                echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/usermanagement ${UI_DEPLOY_PATH}/kmb/
-                                echo "\$SUDO_PASS" | sudo -S cp -r usermanagement_${timestamp}/assets/user_files usermanagement/assets/ || true
+                                [ -d usermanagement ] && echo "\$SUDO_PASS" | sudo -S mv usermanagement ../usermanagement_${timestamp} || echo "No existing usermanagement to backup"
+                                echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/usermanagement ${UI_DEPLOY_PATH}${UI_FOLDER_NAME}/
+                                echo "\$SUDO_PASS" | sudo -S cp -r ../usermanagement_${timestamp}/assets/user_files usermanagement/assets/ || true
 
                                 echo "🧹 Cleaning up older usermanagement backups"
-                                #ls -td usermanagement_*/ | tail -n +3 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
-                                ls -td usermanagement_* | grep -v '_revert_' | tail -n +3 | while read line; do echo "\$SUDO_PASS" | sudo -S rm -rf "\$line"; done
+                                ls -td ../usermanagement_* | grep -v '_revert_' | tail -n +3 | while read line; do echo "\$SUDO_PASS" | sudo -S rm -rf "\$line"; done
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 usermanagement
                             '
                         """
@@ -272,14 +262,13 @@ EOF
                                 echo "📂 Extracting masterdata zip: ${env.MASTERDATA_ZIP_NAME}"
                                 echo "\$SUDO_PASS" | sudo -S unzip -o ${env.MASTERDATA_ZIP_NAME}
 
-                                cd ${UI_DEPLOY_PATH}/kmb
+                                cd ${UI_DEPLOY_PATH}${UI_FOLDER_NAME}
                                 echo "📁 Backing up masterdata folder if exists"
-                                [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata masterdata_${timestamp} || echo "No existing masterdata to backup"
-                                echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/masterdata ${UI_DEPLOY_PATH}/kmb/
+                                [ -d masterdata ] && echo "\$SUDO_PASS" | sudo -S mv masterdata ../masterdata_${timestamp} || echo "No existing masterdata to backup"
+                                echo "\$SUDO_PASS" | sudo -S mv ${DEST_TMP_PATH}/masterdata ${UI_DEPLOY_PATH}${UI_FOLDER_NAME}/
 
                                 echo "🧹 Cleaning up older masterdata backups"
-                                #ls -td masterdata_*/ | tail -n +3 | xargs -r echo "\$SUDO_PASS" | sudo -S rm -rf
-                                ls -td masterdata_* | grep -v '_revert_' | tail -n +3 | while read line; do echo "\$SUDO_PASS" | sudo -S rm -rf "\$line"; done
+                                ls -td ../masterdata_* | grep -v '_revert_' | tail -n +3 | while read line; do echo "\$SUDO_PASS" | sudo -S rm -rf "\$line"; done
                                 echo "\$SUDO_PASS" | sudo -S chmod -R 777 masterdata
                             '
                         """
