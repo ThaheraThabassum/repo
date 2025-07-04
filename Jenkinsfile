@@ -54,6 +54,10 @@ pipeline {
                                     scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${IMAGE_WORK_DIR}/${imageTar} \
                                         ${REMOTE_USER}@${DEST_HOST}:${IMAGE_WORK_DIR}/
 
+                                    echo "🧹 Cleaning up .tar on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "cd ${IMAGE_WORK_DIR} && rm -f ${imageBase}_prod_bak_*.tar"
+
                                     echo "🛡️ Backing up existing Docker image on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
                                         "cd ${IMAGE_WORK_DIR} && echo '1234' | sudo -S docker save -o ${imageTarBak} ${imageName} || echo 'ℹ️ No existing image to backup.'"
