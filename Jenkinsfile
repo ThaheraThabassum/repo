@@ -30,10 +30,8 @@ pipeline {
 
                             // New functionality for extraction_folder
                             if (filePath == "extraction_folder") {
-                                
                                 def normalized = env.CUSTOM_EXTRACTION_SOURCE.replaceAll("/+\$", "")
                                 def folderName = normalized.substring(normalized.lastIndexOf("/") + 1)
-
                                 def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
 
                                 sh """
@@ -42,7 +40,7 @@ pipeline {
                                     mkdir -p "\$TEMP_DIR"
 
                                     echo "📥 Copying extraction folder from SOURCE_HOST..."
-                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${CUSTOM_EXTRACTION_SOURCE}/ "\$TEMP_DIR/\${folderName}/"
+                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${CUSTOM_EXTRACTION_SOURCE}/. "\$TEMP_DIR/"
 
                                     echo "🛡️ Backing up existing folder on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
@@ -56,8 +54,8 @@ pipeline {
                                     echo "📁 Creating destination path on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "sudo mkdir -p '${CUSTOM_EXTRACTION_DEST}/${folderName}'"
 
-                                    echo "🚀 Transferring extracted folder to DEST_HOST..."
-                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\${folderName}/"* ${REMOTE_USER}@${DEST_HOST}:"${CUSTOM_EXTRACTION_DEST}/${folderName}/"
+                                    echo "🚀 Transferring extracted content to DEST_HOST..."
+                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/"* ${REMOTE_USER}@${DEST_HOST}:"${CUSTOM_EXTRACTION_DEST}/${folderName}/"
 
                                     echo "🔒 Setting permissions..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
@@ -69,8 +67,7 @@ pipeline {
                                     echo "🧼 Cleaning old backups (keep last 3) on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
                                         cd ${CUSTOM_EXTRACTION_DEST} && ls -dt ${folderName}_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
-                                    '
-                                """
+                                    '                                """
                                 continue
                             }
 
