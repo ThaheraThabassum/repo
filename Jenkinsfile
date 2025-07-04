@@ -41,15 +41,16 @@ pipeline {
                                     echo "📥 Copying extraction folder from SOURCE_HOST..."
                                     scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${CUSTOM_EXTRACTION_SOURCE} "\$TEMP_DIR/"
 
+
                                     echo "🛡️ Backing up existing folder on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "[ -d '${CUSTOM_EXTRACTION_DEST}' ] && mv '${CUSTOM_EXTRACTION_DEST}' '${CUSTOM_EXTRACTION_DEST}_\${timestamp}' || echo 'No folder to backup.'"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \\
+                                        "[ -d '\${CUSTOM_EXTRACTION_DEST}' ] && mv '\${CUSTOM_EXTRACTION_DEST}' '\${CUSTOM_EXTRACTION_DEST}_\${timestamp}' || echo 'No folder to backup.'"
 
                                     echo "📁 Creating destination path on DEST_HOST..."
-                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p '${CUSTOM_EXTRACTION_DEST}'"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} "mkdir -p '\${CUSTOM_EXTRACTION_DEST}'"
 
                                     echo "🚀 Transferring extracted folder to DEST_HOST..."
-                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\${folderName}/*" ${REMOTE_USER}@${DEST_HOST}:\${CUSTOM_EXTRACTION_DEST}/
+                                    scp -r -o StrictHostKeyChecking=no "\$TEMP_DIR/\${folderName}/*" ${REMOTE_USER}@${DEST_HOST}:"\${CUSTOM_EXTRACTION_DEST}/"
 
                                     echo "🔒 Setting permissions..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
