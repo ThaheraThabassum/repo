@@ -7,7 +7,7 @@ pipeline {
         DEST_HOST = "65.1.176.9"
         SSH_KEY = "08cc52e2-f8f2-4479-87eb-f8307f8d23a8"
         DEST_TMP_PATH = "/home/thahera"
-        UI_DEPLOY_PATH = "/opt/lampp"
+        UI_DEPLOY_PATH = "/opt/lampp/htdocs/"
         UI_FOLDER_NAME = "kmb"
     }
 
