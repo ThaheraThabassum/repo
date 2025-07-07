@@ -1,4 +1,4 @@
 kotak_demo_testing.txt
 extraction_folder
 testing
-kotak_demo_testing.txt
+
