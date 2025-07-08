@@ -16,7 +16,7 @@ pipeline {
         stage('Set Custom Build ID') {
             steps {
                 script {
-                    def customId = String.format("KMB%03d", currentBuild.number)
+                    def customId = String.format("KMBL%03d", currentBuild.number)
                     currentBuild.displayName = customId
                     echo "🔖 Deployment Build ID: ${customId}"
                 }
