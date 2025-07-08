@@ -47,18 +47,18 @@ pipeline {
                                     echo "🚨 Backing up existing extraction_folder on DEST_HOST if exists"
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
                                         if [ -d "${CUSTOM_EXTRACTION_DEST}/${folderName}" ]; then
-                                            sudo mv "${CUSTOM_EXTRACTION_DEST}/${folderName}" "${CUSTOM_EXTRACTION_DEST}/${folderName}_${timestamp}"
+                                            echo "1234" | sudo -S mv "${CUSTOM_EXTRACTION_DEST}/${folderName}" "${CUSTOM_EXTRACTION_DEST}/${folderName}_${timestamp}"
                                         fi
                                     '
 
                                     echo "🚚 Moving copied folder to final destination on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
-                                        sudo mv "/home/thahera/${folderName}" "${CUSTOM_EXTRACTION_DEST}/${folderName}"
+                                        echo "1234" | sudo -S mv "/home/thahera/${folderName}" "${CUSTOM_EXTRACTION_DEST}/${folderName}"
                                     '
 
                                     echo "🔐 Setting permissions on final destination folder..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
-                                        "sudo chmod -R 777 '${CUSTOM_EXTRACTION_DEST}/${folderName}'"
+                                        "echo '1234' | sudo -S chmod -R 777 '${CUSTOM_EXTRACTION_DEST}/${folderName}'"
 
                                     echo "🗑️ Cleaning old backups on DEST_HOST..."
                                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
