@@ -15,6 +15,15 @@ pipeline {
     }
 
     stages {
+        stage('Set Custom Build ID') {
+            steps {
+                script {
+                    def customId = String.format("KMB%03d", currentBuild.number)
+                    currentBuild.displayName = customId
+                    echo "🔖 Deployment Build ID: ${customId}"
+                }
+            }
+        }
         stage('Server to Server Deployment') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
