@@ -26,6 +26,47 @@ pipeline {
                             echo "📁 Processing: ${filePath}"
                             echo "======================================="
 
+                            if (filePath == "extraction_folder") {
+                                def folderName = "extraction_folder"
+                                def timestamp = new Date().format("dd_MM_yy_HH_mm_ss")
+
+                                sh """
+                                    set -e
+
+                                    echo "📆 Timestamp: ${timestamp}"
+                                    echo "📁 Copying folder from SOURCE_HOST to DEST_HOST:/home/thahera/${folderName}"
+
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'rm -rf /home/thahera/${folderName}'
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} 'mkdir -p /home/thahera/${folderName}'
+
+                                    scp -r -o StrictHostKeyChecking=no ${REMOTE_USER}@${SOURCE_HOST}:${CUSTOM_EXTRACTION_SOURCE}/* \
+                                        ${REMOTE_USER}@${DEST_HOST}:/home/thahera/${folderName}/
+
+                                    echo "🚨 Backing up existing extraction_folder on DEST_HOST if exists"
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
+                                        if [ -d "${CUSTOM_EXTRACTION_DEST}/${folderName}" ]; then
+                                            sudo mv "${CUSTOM_EXTRACTION_DEST}/${folderName}" "${CUSTOM_EXTRACTION_DEST}/${folderName}_${timestamp}"
+                                        fi
+                                    '
+
+                                    echo "🚚 Moving copied folder to final destination on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
+                                        sudo mv "/home/thahera/${folderName}" "${CUSTOM_EXTRACTION_DEST}/${folderName}"
+                                    '
+
+                                    echo "🔐 Setting permissions on final destination folder..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} \
+                                        "sudo chmod -R 777 '${CUSTOM_EXTRACTION_DEST}/${folderName}'"
+
+                                    echo "🗑️ Cleaning old backups on DEST_HOST..."
+                                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${DEST_HOST} '
+                                        cd ${CUSTOM_EXTRACTION_DEST} && ls -dt ${folderName}_* 2>/dev/null | tail -n +4 | xargs -r sudo rm -rf
+                                    '
+                                """
+                                continue
+                            }
+
+
                             if (filePath.startsWith("image:")) {
                                 def imageName = filePath.replace("image:", "").trim()
                                 def imageBase = imageName.tokenize("/").last().replaceAll("[:/]", "_")
