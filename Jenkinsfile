@@ -11,7 +11,7 @@ pipeline {
         DEST_BASE_PATH = "/home/ubuntu/ACE-Camunda"
         IMAGE_WORK_DIR = "/home/thahera"
         CUSTOM_EXTRACTION_SOURCE = "/opt/lampp/extraction_folder"
-        CUSTOM_EXTRACTION_DEST = "/var" 
+        CUSTOM_EXTRACTION_DEST = "/var/www" 
     }
 
     stages {
