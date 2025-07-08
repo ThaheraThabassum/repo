@@ -1,4 +1,1 @@
-kotak_demo_testing.txt
-extraction_folder
-testing
 
