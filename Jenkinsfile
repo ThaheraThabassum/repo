@@ -15,6 +15,15 @@ pipeline {
     }
 
     stages {
+        stage('Set Custom Build ID') {
+            steps {
+                script {
+                    def customId = String.format("KMBL%03d", currentBuild.number)
+                    currentBuild.displayName = customId
+                    echo "🔖 Deployment Build ID: ${customId}"
+                }
+            }
+        }
         stage('Checkout Main Branch') {
             steps {
                 sh 'git checkout kotak_PROD_db'
