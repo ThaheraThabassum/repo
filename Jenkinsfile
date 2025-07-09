@@ -21,6 +21,7 @@ pipeline {
                 }
             }
         }
+
         stage('Revert Files/Folders/Images on Destination') {
             steps {
                 sshagent(credentials: [SSH_KEY]) {
@@ -38,7 +39,6 @@ pipeline {
                                 sh """
                                     ssh -o StrictHostKeyChecking=no ${env.REMOTE_USER}@${env.REMOTE_HOST} bash -s <<'EOF'
                                     cd ${IMAGE_WORK_DIR}
-
                                     echo "🔍 Searching for latest image backup tar for ${imageName}..."
                                     TAR_FILE=\$(ls -t ${imageBase}_uat_bak_*.tar 2>/dev/null | head -n1)
 
@@ -51,12 +51,10 @@ pipeline {
 EOF
                                 """
                             } else {
-                                def FILE_PATH = line
-                                if (FILE_PATH.endsWith("/")) {
-                                    FILE_PATH = FILE_PATH[0..-2]
-                                }
+                                def IS_EXTRACTION_FOLDER = (line == "extraction_folder")
+                                def FILE_PATH = line.replaceAll('/+$', '')
 
-                                def DEST_PATH = "${env.DEST_BASE_PATH}/${FILE_PATH}"
+                                def DEST_PATH = IS_EXTRACTION_FOLDER ? "/opt/${FILE_PATH}" : "${env.DEST_BASE_PATH}/${FILE_PATH}"
                                 def DEST_DIR = DEST_PATH.substring(0, DEST_PATH.lastIndexOf("/"))
                                 def FILE_NAME = DEST_PATH.substring(DEST_PATH.lastIndexOf("/") + 1)
                                 def TIMESTAMP = new Date().format("dd_MM_yy_HH_mm_ss")
@@ -125,9 +123,8 @@ EOF
                             fi
                             
                             echo \"Recreating containers with docker-compose...\"
-            
                             cd ${env.DEST_BASE_PATH}
-                            # Uncomment below if needed:
+                            # Uncomment if needed:
                             # sudo docker-compose up --build -d --force-recreate
                         '
                     """
